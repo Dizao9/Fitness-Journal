@@ -1,6 +1,8 @@
 package domain
 
-import "time"
+import (
+	"time"
+)
 
 type Athlete struct {
 	ID           string    `json:"id"`

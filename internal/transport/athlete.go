@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -9,11 +10,27 @@ import (
 	"unicode/utf8"
 
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
+	"github.com/Dizao9/Fitness-Journal/internal/service"
 	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
 )
 
+type ctxKey int
+
+const userIDKey ctxKey = iota
+
+func ContextWithUserID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, userIDKey, id)
+}
+
+func UserIDFromContext(ctx context.Context) (string, bool) {
+	id, ok := ctx.Value(userIDKey).(string)
+	return id, ok
+}
+
 type AuthService interface {
 	Register(req dto.RegisterUser) (string, error)
+	Login(email string, password string) (string, error)
+	ParseToken(token string) (*service.CustomClaims, error)
 }
 
 type Handler struct {
@@ -78,4 +95,71 @@ func (h *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[AUTH] encode error: %v\n", err)
 		return
 	}
+}
+
+func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+	var u dto.LoginUser
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if !strings.Contains(u.Email, "@") {
+		http.Error(w, "invalid request, email required", http.StatusBadRequest)
+		return
+	}
+
+	if u.Password == "" {
+		http.Error(w, "invalid request, password required", http.StatusBadRequest)
+		return
+	}
+
+	token, err := h.AuthSvc.Login(u.Email, u.Password)
+	if err != nil {
+		if errors.Is(err, domain.ErrInvalidCredentials) {
+			http.Error(w, "login error", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false, //on prodaction = true
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   15 * 60 * 60,
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(map[string]string{"message": "login successful"}); err != nil {
+		log.Printf("[LOGIN] encoder failed:%v", err)
+	}
+}
+
+func (h *Handler) AuthMiddlware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("access_token")
+		if err != nil {
+			http.Error(w, "token cookie is required", http.StatusUnauthorized)
+			return
+		}
+		tokenStr := cookie.Value
+		if tokenStr == "" {
+			http.Error(w, "token cookie is required", http.StatusBadRequest)
+			return
+		}
+		claims, err := h.AuthSvc.ParseToken(tokenStr)
+		if err != nil {
+			http.Error(w, "some tokens problem", http.StatusUnauthorized)
+			return
+		}
+		ctx := ContextWithUserID(r.Context(), claims.ID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }

@@ -7,3 +7,8 @@ type RegisterUser struct {
 	Name     string `json:"name"`
 	Age      int    `json:"age"`
 }
+
+type LoginUser struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}

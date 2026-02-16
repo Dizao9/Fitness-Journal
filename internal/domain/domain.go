@@ -6,13 +6,20 @@ import (
 
 type Athlete struct {
 	ID           string    `json:"id"`
-	Age          int       `json:"age"`
-	Name         string    `json:"name"`
+	Age          *int      `json:"age"`
+	Name         *string   `json:"name"`
 	Username     string    `json:"username"`
 	PasswordHash string    `json:"-"`
-	CurrentCycle string    `json:"current_cycle"`
+	CurrentCycle *string   `json:"current_cycle"`
 	CreatedAt    time.Time `json:"created_at"`
 	Email        string    `json:"email"`
-	Gender       string    `json:"gender"`
-	Role         string    `json:"role"`
+	Gender       *string   `json:"gender"`
+	Role         *string   `json:"role"`
+}
+
+func (a *Athlete) GetRole() string {
+	if a.Role == nil {
+		return ""
+	}
+	return *a.Role
 }

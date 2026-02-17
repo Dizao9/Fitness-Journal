@@ -159,7 +159,7 @@ func (h *Handler) AuthMiddlware(next http.Handler) http.Handler {
 			http.Error(w, "some tokens problem", http.StatusUnauthorized)
 			return
 		}
-		ctx := ContextWithUserID(r.Context(), claims.ID)
+		ctx := ContextWithUserID(r.Context(), claims.UserID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

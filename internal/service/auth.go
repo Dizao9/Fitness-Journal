@@ -19,17 +19,18 @@ type CustomClaims struct {
 	jwt.RegisteredClaims
 }
 
-type AthleteStorage interface {
+type AuthStorage interface {
 	CreateAthlete(athlete domain.Athlete) (string, error)
 	GetByEmail(email string) (domain.Athlete, error)
+	GetByUserID(userID string) (domain.Athlete, error)
 }
 
 type AuthService struct {
-	Store AthleteStorage
+	Store AuthStorage
 	Conf  *config.Config
 }
 
-func NewAuthService(s AthleteStorage, c *config.Config) *AuthService {
+func NewAuthService(s AuthStorage, c *config.Config) *AuthService {
 	if s == nil {
 		log.Fatalf("[AUTH] Storage is required")
 	}

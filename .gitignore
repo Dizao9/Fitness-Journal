@@ -1,13 +1,11 @@
-main
-app
-/bin/
+# Бинарники Windows
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
 
-#ENV
-.env
-
-# IDEs
-.idea/
-.vscode/
-
-# OS specific
-.DS_STORE
+# Бинарники без расширения (если они называются так же, как папки, 
+# лучше указывать путь от корня)
+/main
+/app

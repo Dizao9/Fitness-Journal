@@ -6,11 +6,15 @@ import (
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
 )
 
-type ExercStorage struct {
+type ExerciseStorage struct {
 	DB *sql.DB
 }
 
-func (s *ExercStorage) CreateExercise(exercise domain.Exercise) (int, error) {
+func NewExerciseStorage(db *sql.DB) *ExerciseStorage {
+	return &ExerciseStorage{DB: db}
+}
+
+func (s *ExerciseStorage) CreateExercise(exercise domain.Exercise) (int, error) {
 	var id int
 	err := s.DB.QueryRow(`INSERT INTO exercises 
 	(name, muscle_group, description, athlete_id)

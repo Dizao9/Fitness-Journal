@@ -19,6 +19,7 @@ func NewRouter(handlers *transport.Handlers) *http.ServeMux {
 	protected := handlers.Auth.AuthMiddlware
 	mux.Handle("POST /exercise", protected(http.HandlerFunc(handlers.Exercise.PostExercise)))
 	mux.Handle("GET /ListExercises", protected(http.HandlerFunc(handlers.Exercise.GetPageOfExercise)))
+	mux.Handle("GET /exercise/{id}", protected(http.HandlerFunc(handlers.Exercise.GetExerciseByID)))
 	//auth block
 	mux.HandleFunc("POST /auth/register", handlers.Auth.RegisterUser)
 	mux.HandleFunc("POST /auth/login", handlers.Auth.Login)

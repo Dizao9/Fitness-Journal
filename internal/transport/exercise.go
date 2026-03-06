@@ -14,7 +14,7 @@ import (
 
 type ExerciseService interface {
 	CreateCustomExercise(exerReq dto.CreateExerciseRequestDTO) (int, error)
-	GetPageOfExercise(ctx context.Context, userID uuid.UUID, limit, offset int) ([]dto.ExerciseForPageDTO, error)
+	GetPageOfExercise(ctx context.Context, userID uuid.UUID, filter string, limit, offset int) ([]dto.ExerciseForPageDTO, error)
 }
 
 type ExerciseHandler struct {
@@ -98,7 +98,9 @@ func (h *ExerciseHandler) GetPageOfExercise(w http.ResponseWriter, r *http.Reque
 		page = 1
 	}
 
-	ListOfExercises, err := h.Service.GetPageOfExercise(context, userID, limit, page)
+	filter := query.Get("filter")
+
+	ListOfExercises, err := h.Service.GetPageOfExercise(context, userID, filter, limit, page)
 	if err != nil {
 		log.Printf("[GET_EXERCISES internal server error: %v]", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)

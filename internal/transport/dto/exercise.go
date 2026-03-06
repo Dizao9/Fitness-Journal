@@ -13,9 +13,14 @@ type ExerciseForPageDTO struct {
 	ID          int    `json:"id"`
 	Name        string `json:"name"`
 	MuscleGroup string `json:"muscle_group"`
+	IsOwner     bool   `json:"is_owner"`
+	IsSystem    bool   `json:"is_system"`
 }
 
-type ExercisePageRequest struct {
-	Limit  int `json:"limit"`
-	Offset int `json:"offset"`
+type ExerciseDTO struct {
+	ID          int     `json:"id"`
+	Name        string  `json:"string"`
+	MuscleGroup string  `json:"muscle_group"`
+	Description *string `json:"description"`
+	IsOwner     bool    `json:"is_owner"`
 }

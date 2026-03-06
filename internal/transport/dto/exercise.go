@@ -8,3 +8,14 @@ type CreateExerciseRequestDTO struct {
 	Description *string    `json:"description"`
 	AthleteID   *uuid.UUID `json:"-"`
 }
+
+type ExerciseForPageDTO struct {
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	MuscleGroup string `json:"muscle_group"`
+}
+
+type ExercisePageRequest struct {
+	Limit  int `json:"limit"`
+	Offset int `json:"offset"`
+}

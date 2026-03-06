@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -17,6 +18,7 @@ func NewRouter(handlers *transport.Handlers) *http.ServeMux {
 	//exercise block
 	protected := handlers.Auth.AuthMiddlware
 	mux.Handle("POST /exercise", protected(http.HandlerFunc(handlers.Exercise.PostExercise)))
+	mux.Handle("GET /ListExercises", protected(http.HandlerFunc(handlers.Exercise.GetPageOfExercise)))
 	//auth block
 	mux.HandleFunc("POST /auth/register", handlers.Auth.RegisterUser)
 	mux.HandleFunc("POST /auth/login", handlers.Auth.Login)
@@ -28,14 +30,14 @@ func NewRouter(handlers *transport.Handlers) *http.ServeMux {
 	return mux
 }
 
-func Run(ctx context.Context) {
+func Run(ctx context.Context) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("failed to load config data: %v", err)
+		return fmt.Errorf("config load: %w", err)
 	}
 	db, err := storage.ConnectToDB(cfg.DSN)
 	if err != nil {
-		log.Fatalf("failed connect to db: %v", err)
+		return fmt.Errorf("failed connect to db: %w", err)
 	}
 
 	storage := storage.NewStorage(db)
@@ -50,26 +52,31 @@ func Run(ctx context.Context) {
 		ReadTimeout:  15 * time.Second,
 	}
 
+	serverError := make(chan error, 1)
 	go func() {
 		log.Println("Server is running on :8080")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("listen: %s\n", err)
+			serverError <- fmt.Errorf("listen: %s\n", err)
 		}
 	}()
-
-	<-ctx.Done()
-	log.Println("Shutting down..")
+	select {
+	case <-serverError:
+		return err
+	case <-ctx.Done():
+		log.Println("Shutting down..")
+	}
 
 	shutDownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(shutDownCtx); err != nil {
-		log.Printf("Server forced to shutdown: %v", err)
+		return fmt.Errorf("Shutdown server :%w", err)
 	}
 
 	if err := db.Close(); err != nil {
-		log.Printf("Error closing DB: %v", err)
+		return fmt.Errorf("closing DB: %w", err)
 	}
 
 	log.Println("Server exited properly")
+	return nil
 }

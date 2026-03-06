@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"os/signal"
 	"syscall"
 
@@ -12,5 +13,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	app.Run(ctx)
+	if err := app.Run(ctx); err != nil {
+		log.Fatalf("Apllication failed: %v", err)
+	}
+
+	log.Println("Application stopped safely")
 }

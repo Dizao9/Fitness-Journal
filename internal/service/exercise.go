@@ -11,6 +11,7 @@ import (
 type ExerciseStorage interface {
 	CreateExercise(exercise domain.Exercise) (int, error)
 	GetExercises(ctx context.Context, userID uuid.UUID, filter string, limit, offset int) ([]domain.Exercise, error)
+	GetExerciseByID(userID uuid.UUID, exerciseID int) (domain.Exercise, error)
 }
 
 type ExerciseService struct {
@@ -63,4 +64,21 @@ func (s *ExerciseService) GetPageOfExercise(ctx context.Context, userID uuid.UUI
 	return DTOExercises, nil
 }
 
-// func (s *ExerciseService) GetExerciseByID(userIDStr string, exerciseID int) (domain.Exercise, error)
+func (s *ExerciseService) GetExerciseByID(userID uuid.UUID, exerciseID int) (dto.ExerciseDTO, error) {
+	exercise, err := s.Store.GetExerciseByID(userID, exerciseID)
+	if err != nil {
+		return dto.ExerciseDTO{}, err
+	}
+
+	isOwner := false
+	if exercise.AthleteID != nil {
+		isOwner = (*exercise.AthleteID == userID)
+	}
+	return dto.ExerciseDTO{
+		ID:          exercise.ID,
+		Name:        exercise.Name,
+		MuscleGroup: exercise.MuscleGroup,
+		Description: exercise.Description,
+		IsOwner:     isOwner,
+	}, nil
+}

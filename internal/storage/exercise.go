@@ -58,7 +58,7 @@ func (s *ExerciseStorage) GetExercises(ctx context.Context, userID uuid.UUID, fi
 	args = append(args, limit, offset)
 	rows, err := s.DB.Query(query, args...)
 	if err != nil {
-		return nil, ValidateExerciseNotFound(err)
+		return nil, err
 	}
 	defer rows.Close()
 	exercises := make([]domain.Exercise, 0, 50)
@@ -79,7 +79,7 @@ func (s *ExerciseStorage) GetExerciseByID(userID uuid.UUID, exerciseID int) (dom
 	var exercise domain.Exercise
 
 	err := s.DB.QueryRow(`SELECT id, name, muscle_group, description, athlete_id FROM exercises WHERE ID = $1
-	AND athlete_id IS NULL OR athlete_id = $2`, exerciseID, userID).
+	AND (athlete_id IS NULL OR athlete_id = $2)`, exerciseID, userID).
 		Scan(&exercise.ID, &exercise.Name, &exercise.MuscleGroup, &exercise.Description, &exercise.AthleteID)
 	if err != nil {
 		return exercise, ValidateExerciseNotFound(err)

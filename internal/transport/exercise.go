@@ -3,11 +3,13 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/Dizao9/Fitness-Journal/internal/domain"
 	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
 	"github.com/google/uuid"
 )
@@ -15,6 +17,7 @@ import (
 type ExerciseService interface {
 	CreateCustomExercise(exerReq dto.CreateExerciseRequestDTO) (int, error)
 	GetPageOfExercise(ctx context.Context, userID uuid.UUID, filter string, limit, offset int) ([]dto.ExerciseForPageDTO, error)
+	GetExerciseByID(userID uuid.UUID, exerciseID int) (dto.ExerciseDTO, error)
 }
 
 type ExerciseHandler struct {
@@ -111,5 +114,44 @@ func (h *ExerciseHandler) GetPageOfExercise(w http.ResponseWriter, r *http.Reque
 	if err := json.NewEncoder(w).Encode(ListOfExercises); err != nil {
 		log.Printf("[GET_EXERCISES] encode problem :%v", err)
 
+	}
+}
+
+func (h *ExerciseHandler) GetExerciseByID(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	userIDStr, ok := UserIDFromContext(r.Context())
+	if !ok {
+		log.Printf("[GET_EXERCISE] false from context ")
+		http.Error(w, "missing userID from middleware", http.StatusInternalServerError)
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		log.Printf("[GET_EXERCISE] invalid format userID from token: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	exerciseID, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "invalid exercise_id format", http.StatusBadRequest)
+		return
+	}
+
+	exercise, err := h.Service.GetExerciseByID(userID, exerciseID)
+	if err != nil {
+		if errors.Is(err, domain.ErrExerciseNotFound) {
+			http.Error(w, "invalid exercise_id", http.StatusBadRequest)
+			return
+		}
+		log.Printf("[GET_EXERCISE] internal server error: %v", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(exercise); err != nil {
+		log.Printf("[GET_EXERCISE] encode problem :%v", err)
 	}
 }

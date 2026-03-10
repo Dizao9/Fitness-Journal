@@ -87,3 +87,21 @@ func (s *ExerciseStorage) GetExerciseByID(userID uuid.UUID, exerciseID int) (dom
 
 	return exercise, nil
 }
+
+func (s *ExerciseStorage) DeleteExercise(exerciseID int) error {
+	res, err := s.DB.Exec(`DELETE FROM exercises WHERE id = $1`, exerciseID)
+	if err != nil {
+		return ValidateExerciseNotFound(err)
+	}
+
+	countAff, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if countAff == 0 {
+		return domain.ErrExerciseNotFound
+	}
+
+	return nil
+}

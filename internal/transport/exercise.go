@@ -18,6 +18,7 @@ type ExerciseService interface {
 	CreateCustomExercise(exerReq dto.CreateExerciseRequestDTO) (int, error)
 	GetPageOfExercise(ctx context.Context, userID uuid.UUID, filter string, limit, offset int) ([]dto.ExerciseForPageDTO, error)
 	GetExerciseByID(userID uuid.UUID, exerciseID int) (dto.ExerciseDTO, error)
+	DeleteExerciseByID(userID uuid.UUID, exerciseID int) error
 }
 
 type ExerciseHandler struct {
@@ -154,4 +155,41 @@ func (h *ExerciseHandler) GetExerciseByID(w http.ResponseWriter, r *http.Request
 	if err := json.NewEncoder(w).Encode(exercise); err != nil {
 		log.Printf("[GET_EXERCISE] encode problem :%v", err)
 	}
+}
+
+func (h *ExerciseHandler) DeleteExercise(w http.ResponseWriter, r *http.Request) {
+	userIDStr, ok := UserIDFromContext(r.Context())
+	if !ok {
+		log.Printf("[DELETE_EXERCISE] false from context")
+		http.Error(w, "missing user_id from middleware", http.StatusInternalServerError)
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		log.Printf("[GET_EXERCISE] invalid format userID from token: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	exerciseID, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "invalid exerciseID format", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.Service.DeleteExerciseByID(userID, exerciseID); err != nil {
+		if errors.Is(err, domain.ErrNotEnoughPermission) {
+			http.Error(w, "not enough permission to delete this", http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, domain.ErrExerciseNotFound) {
+			http.Error(w, "resource not found", http.StatusNotFound)
+			return
+		}
+		log.Printf("[DELETE_EXERCISE] internal server error: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

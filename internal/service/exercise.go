@@ -12,6 +12,7 @@ type ExerciseStorage interface {
 	CreateExercise(exercise domain.Exercise) (int, error)
 	GetExercises(ctx context.Context, userID uuid.UUID, filter string, limit, offset int) ([]domain.Exercise, error)
 	GetExerciseByID(userID uuid.UUID, exerciseID int) (domain.Exercise, error)
+	DeleteExercise(exerciseID int) error
 }
 
 type ExerciseService struct {
@@ -81,4 +82,17 @@ func (s *ExerciseService) GetExerciseByID(userID uuid.UUID, exerciseID int) (dto
 		Description: exercise.Description,
 		IsOwner:     isOwner,
 	}, nil
+}
+
+func (s *ExerciseService) DeleteExerciseByID(userID uuid.UUID, exerciseID int) error {
+	exercise, err := s.Store.GetExerciseByID(userID, exerciseID)
+	if err != nil {
+		return err
+	}
+
+	if exercise.AthleteID == nil {
+		return domain.ErrNotEnoughPermission
+	}
+
+	return s.Store.DeleteExercise(exerciseID)
 }

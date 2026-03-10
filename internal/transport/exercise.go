@@ -73,11 +73,9 @@ func (h *ExerciseHandler) GetPageOfExercise(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	userIDStr, ok := UserIDFromContext(ctx)
 	if !ok {
-		if !ok {
-			log.Print("[GET_EXERCISES] false from context")
-			http.Error(w, "missing userID from middleware", http.StatusInternalServerError)
-			return
-		}
+		log.Print("[GET_EXERCISES] false from context")
+		http.Error(w, "missing userID from middleware", http.StatusInternalServerError)
+		return
 	}
 
 	context, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -147,6 +145,7 @@ func (h *ExerciseHandler) GetExerciseByID(w http.ResponseWriter, r *http.Request
 			return
 		}
 		log.Printf("[GET_EXERCISE] internal server error: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

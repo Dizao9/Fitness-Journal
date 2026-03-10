@@ -37,8 +37,8 @@ type AuthHandler struct {
 	AuthSvc AuthService
 }
 
-func NewAuthHandler(ASvc AuthService) AuthHandler {
-	return AuthHandler{
+func NewAuthHandler(ASvc AuthService) *AuthHandler {
+	return &AuthHandler{
 		AuthSvc: ASvc,
 	}
 }

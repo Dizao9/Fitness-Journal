@@ -13,6 +13,7 @@ type ExerciseStorage interface {
 	GetExercises(ctx context.Context, userID uuid.UUID, filter string, limit, offset int) ([]domain.Exercise, error)
 	GetExerciseByID(userID uuid.UUID, exerciseID int) (domain.Exercise, error)
 	DeleteExercise(exerciseID int) error
+	UpdateExercise(exercise domain.Exercise) error
 }
 
 type ExerciseService struct {
@@ -95,4 +96,23 @@ func (s *ExerciseService) DeleteExerciseByID(userID uuid.UUID, exerciseID int) e
 	}
 
 	return s.Store.DeleteExercise(exerciseID)
+}
+
+func (s *ExerciseService) UpdateExercise(userID uuid.UUID, exerciseID int, exerciseUPD dto.ExerciseUpdateReqDTO) error {
+	exercise, err := s.Store.GetExerciseByID(userID, exerciseID)
+	if err != nil {
+		return err
+	}
+
+	if exerciseUPD.Name != nil {
+		exercise.Name = *exerciseUPD.Name
+	}
+	if exerciseUPD.MuscleGroup != nil {
+		exercise.MuscleGroup = *exerciseUPD.MuscleGroup
+	}
+	if exerciseUPD.Description != nil {
+		exercise.Description = *&exerciseUPD.Description
+	}
+
+	return s.Store.UpdateExercise(exercise)
 }

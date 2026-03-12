@@ -4,12 +4,13 @@ import (
 	"github.com/Dizao9/Fitness-Journal/internal/config"
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
 	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
+	"github.com/google/uuid"
 )
 
 type AthleteStorage interface {
-	GetByUserID(userID string) (domain.Athlete, error)
-	UpdateUser(userID string, a domain.Athlete) error
-	DeleteUser(userID string) error
+	GetByUserID(userID uuid.UUID) (domain.Athlete, error)
+	UpdateUser(userID uuid.UUID, a domain.Athlete) error
+	DeleteUser(userID uuid.UUID) error
 }
 
 type AthleteService struct {
@@ -24,7 +25,7 @@ func NewAthleteService(Str AthleteStorage, Cnf *config.Config) *AthleteService {
 	}
 }
 
-func (a *AthleteService) GetByUserID(userID string) (dto.UserProfileResponseDTO, error) {
+func (a *AthleteService) GetByUserID(userID uuid.UUID) (dto.UserProfileResponseDTO, error) {
 	athlete, err := a.Store.GetByUserID(userID)
 	if err != nil {
 		return dto.UserProfileResponseDTO{}, err
@@ -52,7 +53,7 @@ func (a *AthleteService) GetByUserID(userID string) (dto.UserProfileResponseDTO,
 	return resp, nil
 }
 
-func (s *AthleteService) UpdateUser(userID string, upd dto.UpdateProfileRequest) error {
+func (s *AthleteService) UpdateUser(userID uuid.UUID, upd dto.UpdateProfileRequest) error {
 	athlete, err := s.Store.GetByUserID(userID)
 	if err != nil {
 		return err
@@ -77,6 +78,6 @@ func (s *AthleteService) UpdateUser(userID string, upd dto.UpdateProfileRequest)
 	return s.Store.UpdateUser(userID, athlete)
 }
 
-func (s *AthleteService) DeleteUser(userID string) error {
+func (s *AthleteService) DeleteUser(userID uuid.UUID) error {
 	return s.Store.DeleteUser(userID)
 }

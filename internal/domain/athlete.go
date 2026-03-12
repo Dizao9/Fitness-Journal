@@ -2,10 +2,12 @@ package domain
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Athlete struct {
-	ID           string    `json:"id"`
+	ID           uuid.UUID `json:"id"`
 	Age          *int      `json:"age"`
 	Name         *string   `json:"name"`
 	Username     string    `json:"username"`

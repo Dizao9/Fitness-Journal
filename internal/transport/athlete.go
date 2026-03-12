@@ -8,12 +8,13 @@ import (
 
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
 	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
+	"github.com/google/uuid"
 )
 
 type AthleteService interface {
-	GetByUserID(userID string) (dto.UserProfileResponseDTO, error)
-	UpdateUser(userID string, upd dto.UpdateProfileRequest) error
-	DeleteUser(userID string) error
+	GetByUserID(userID uuid.UUID) (dto.UserProfileResponseDTO, error)
+	UpdateUser(userID uuid.UUID, upd dto.UpdateProfileRequest) error
+	DeleteUser(userID uuid.UUID) error
 }
 
 type AthleteHandler struct {

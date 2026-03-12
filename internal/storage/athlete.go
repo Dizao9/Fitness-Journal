@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -32,16 +33,20 @@ func ValidateUserNotFound(err error) error {
 	return err
 }
 
-func (s *AthleteStorage) CreateAthlete(athlete domain.Athlete) (string, error) {
-	var id string
+func (s *AthleteStorage) CreateAthlete(athlete domain.Athlete) (uuid.UUID, error) {
+	var idStr string
 	err := s.DB.QueryRow(`INSERT INTO athletes (username, email, name, age, password_hash, created_at)
 	VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`, athlete.Username, athlete.Email, athlete.Name,
-		athlete.Age, athlete.PasswordHash, athlete.CreatedAt).Scan(&id)
+		athlete.Age, athlete.PasswordHash, athlete.CreatedAt).Scan(&idStr)
 	if err != nil {
 		if ValidateErrorUserAlreadyExists(err) {
-			return "", domain.ErrUserAlreadyExists
+			return uuid.Nil, domain.ErrUserAlreadyExists
 		}
-		return "", fmt.Errorf("failed to create athlet: %w", err)
+		return uuid.Nil, fmt.Errorf("failed to create athlet: %w", err)
+	}
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return id, nil
 	}
 
 	return id, nil
@@ -58,7 +63,7 @@ func (s *AthleteStorage) GetByEmail(email string) (domain.Athlete, error) {
 	return a, nil
 }
 
-func (s *AthleteStorage) GetByUserID(userID string) (domain.Athlete, error) {
+func (s *AthleteStorage) GetByUserID(userID uuid.UUID) (domain.Athlete, error) {
 	var a domain.Athlete
 	err := s.DB.QueryRow("SELECT id, age, name, username, current_cycle, email, gender, role FROM athletes WHERE id = $1", userID).
 		Scan(&a.ID, &a.Age, &a.Name, &a.Username, &a.CurrentCycle, &a.Email, &a.Gender, &a.Role)
@@ -69,7 +74,7 @@ func (s *AthleteStorage) GetByUserID(userID string) (domain.Athlete, error) {
 	return a, nil
 }
 
-func (s *AthleteStorage) UpdateUser(id string, a domain.Athlete) error {
+func (s *AthleteStorage) UpdateUser(id uuid.UUID, a domain.Athlete) error {
 	res, err := s.DB.Exec("UPDATE athletes SET name = $1, age = $2, username = $3, current_cycle = $4 WHERE id = $5", a.Name, a.Age, a.Username, a.CurrentCycle, id)
 	if err != nil {
 		return err
@@ -85,7 +90,7 @@ func (s *AthleteStorage) UpdateUser(id string, a domain.Athlete) error {
 	return nil
 }
 
-func (s *AthleteStorage) DeleteUser(id string) error {
+func (s *AthleteStorage) DeleteUser(id uuid.UUID) error {
 	res, err := s.DB.Exec("DELETE FROM athletes WHERE id = $1", id)
 	if err != nil {
 		return err
@@ -101,4 +106,14 @@ func (s *AthleteStorage) DeleteUser(id string) error {
 	}
 
 	return nil
+}
+
+func (s *AthleteStorage) ExistsByID(id uuid.UUID) (bool, error) {
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM athletes WHERE ID = $1)`
+	err := s.DB.QueryRow(query, id).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("db check failed: %v", err)
+	}
+	return exists, err
 }

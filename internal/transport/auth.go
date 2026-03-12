@@ -12,25 +12,27 @@ import (
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
 	"github.com/Dizao9/Fitness-Journal/internal/service"
 	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
+	"github.com/google/uuid"
 )
 
 type ctxKey int
 
 const userIDKey ctxKey = iota
 
-func ContextWithUserID(ctx context.Context, id string) context.Context {
+func ContextWithUserID(ctx context.Context, id uuid.UUID) context.Context {
 	return context.WithValue(ctx, userIDKey, id)
 }
 
-func UserIDFromContext(ctx context.Context) (string, bool) {
-	id, ok := ctx.Value(userIDKey).(string)
+func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
+	id, ok := ctx.Value(userIDKey).(uuid.UUID)
 	return id, ok
 }
 
 type AuthService interface {
-	Register(req dto.RegisterUser) (string, error)
+	Register(req dto.RegisterUser) (uuid.UUID, error)
 	Login(email string, password string) (string, error)
 	ParseToken(token string) (*service.CustomClaims, error)
+	ExistsByID(id uuid.UUID) (bool, error)
 }
 
 type AuthHandler struct {
@@ -163,6 +165,20 @@ func (h *AuthHandler) AuthMiddlware(next http.Handler) http.Handler {
 		claims, err := h.AuthSvc.ParseToken(tokenStr)
 		if err != nil {
 			http.Error(w, "some tokens problem", http.StatusUnauthorized)
+			return
+		}
+
+		exists, err := h.AuthSvc.ExistsByID(claims.UserID)
+		if err != nil {
+			log.Printf("[AUTH_MIDDLEWARE] db was failed: %v", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		if !exists {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "user not found"})
 			return
 		}
 		ctx := ContextWithUserID(r.Context(), claims.UserID)

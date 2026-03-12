@@ -32,16 +32,10 @@ func NewExerciseHandler(s ExerciseService) *ExerciseHandler {
 
 func (h *ExerciseHandler) PostExercise(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	userIDStr, ok := UserIDFromContext(r.Context())
+	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
 		log.Print("[CREATE_EXERCISE] false from context")
 		http.Error(w, "missing userID from middleware", http.StatusInternalServerError)
-		return
-	}
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		log.Printf("[CREATE_EXERCISE] invalid format userID from token: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -72,7 +66,7 @@ func (h *ExerciseHandler) PostExercise(w http.ResponseWriter, r *http.Request) {
 func (h *ExerciseHandler) GetPageOfExercise(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	ctx := r.Context()
-	userIDStr, ok := UserIDFromContext(ctx)
+	userID, ok := UserIDFromContext(ctx)
 	if !ok {
 		log.Print("[GET_EXERCISES] false from context")
 		http.Error(w, "missing userID from middleware", http.StatusInternalServerError)
@@ -81,14 +75,6 @@ func (h *ExerciseHandler) GetPageOfExercise(w http.ResponseWriter, r *http.Reque
 
 	context, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-
-	userID, err := uuid.Parse(userIDStr)
-
-	if err != nil {
-		log.Printf("[GET_EXERCISES] invalid format userID from token: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
 
 	query := r.URL.Query()
 	limit, err := strconv.Atoi(query.Get("limit"))
@@ -118,17 +104,10 @@ func (h *ExerciseHandler) GetPageOfExercise(w http.ResponseWriter, r *http.Reque
 
 func (h *ExerciseHandler) GetExerciseByID(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	userIDStr, ok := UserIDFromContext(r.Context())
+	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
 		log.Printf("[GET_EXERCISE] false from context ")
 		http.Error(w, "missing userID from middleware", http.StatusInternalServerError)
-		return
-	}
-
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		log.Printf("[GET_EXERCISE] invalid format userID from token: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -158,20 +137,12 @@ func (h *ExerciseHandler) GetExerciseByID(w http.ResponseWriter, r *http.Request
 
 func (h *ExerciseHandler) DeleteExercise(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	userIDStr, ok := UserIDFromContext(r.Context())
+	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
 		log.Printf("[DELETE_EXERCISE] false from context")
 		http.Error(w, "missing user_id from middleware", http.StatusInternalServerError)
 		return
 	}
-
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		log.Printf("[DELETE_EXERCISE] invalid format userID from token: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
 	exerciseID, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, "invalid exerciseID format", http.StatusBadRequest)
@@ -196,17 +167,10 @@ func (h *ExerciseHandler) DeleteExercise(w http.ResponseWriter, r *http.Request)
 
 func (h *ExerciseHandler) UpdateExercise(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	userIDStr, ok := UserIDFromContext(r.Context())
+	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
 		log.Printf("[PUT_EXERCISE] false from context")
 		http.Error(w, "missing user_id from middleware", http.StatusInternalServerError)
-		return
-	}
-
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		log.Printf("[PUT_EXERCISE] invalid format userID from token: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 

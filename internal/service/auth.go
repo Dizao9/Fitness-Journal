@@ -9,20 +9,22 @@ import (
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
 	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type CustomClaims struct {
-	UserID string `json:"user_id"`
-	Role   string `json:"role"`
-	Email  string `json:"email"`
+	UserID uuid.UUID `json:"user_id"`
+	Role   string    `json:"role"`
+	Email  string    `json:"email"`
 	jwt.RegisteredClaims
 }
 
 type AuthStorage interface {
-	CreateAthlete(athlete domain.Athlete) (string, error)
+	CreateAthlete(athlete domain.Athlete) (uuid.UUID, error)
 	GetByEmail(email string) (domain.Athlete, error)
-	GetByUserID(userID string) (domain.Athlete, error)
+	GetByUserID(userID uuid.UUID) (domain.Athlete, error)
+	ExistsByID(userID uuid.UUID) (bool, error)
 }
 
 type AuthService struct {
@@ -40,10 +42,10 @@ func NewAuthService(s AuthStorage, c *config.Config) *AuthService {
 	}
 }
 
-func (a *AuthService) Register(req dto.RegisterUser) (string, error) {
+func (a *AuthService) Register(req dto.RegisterUser) (uuid.UUID, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(req.Password), 12)
 	if err != nil {
-		return "", err
+		return uuid.Nil, err
 	}
 
 	u := domain.Athlete{
@@ -58,7 +60,7 @@ func (a *AuthService) Register(req dto.RegisterUser) (string, error) {
 	return a.Store.CreateAthlete(u)
 }
 
-func (a *AuthService) generateToken(id, role, email string) (string, error) {
+func (a *AuthService) generateToken(id uuid.UUID, role, email string) (string, error) {
 	claims := CustomClaims{
 		UserID: id,
 		Role:   role,
@@ -107,4 +109,8 @@ func (a *AuthService) ParseToken(tokenStr string) (*CustomClaims, error) {
 		return nil, domain.ErrInvalidCredentials
 	}
 	return claims, nil
+}
+
+func (a *AuthService) ExistsByID(id uuid.UUID) (bool, error) {
+	return a.Store.ExistsByID(id)
 }

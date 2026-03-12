@@ -19,8 +19,14 @@ type ExerciseForPageDTO struct {
 
 type ExerciseDTO struct {
 	ID          int     `json:"id"`
-	Name        string  `json:"string"`
+	Name        string  `json:"name"`
 	MuscleGroup string  `json:"muscle_group"`
 	Description *string `json:"description"`
 	IsOwner     bool    `json:"is_owner"`
+}
+
+type ExerciseUpdateReqDTO struct {
+	Name        *string `json:"name"`
+	MuscleGroup *string `json:"muscle_group"`
+	Description *string `json:"description"`
 }

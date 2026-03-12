@@ -19,6 +19,7 @@ type ExerciseService interface {
 	GetPageOfExercise(ctx context.Context, userID uuid.UUID, filter string, limit, offset int) ([]dto.ExerciseForPageDTO, error)
 	GetExerciseByID(userID uuid.UUID, exerciseID int) (dto.ExerciseDTO, error)
 	DeleteExerciseByID(userID uuid.UUID, exerciseID int) error
+	UpdateExercise(userID uuid.UUID, exerciseID int, exerciseUPD dto.ExerciseUpdateReqDTO) error
 }
 
 type ExerciseHandler struct {
@@ -112,7 +113,6 @@ func (h *ExerciseHandler) GetPageOfExercise(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(ListOfExercises); err != nil {
 		log.Printf("[GET_EXERCISES] encode problem :%v", err)
-
 	}
 }
 
@@ -157,6 +157,7 @@ func (h *ExerciseHandler) GetExerciseByID(w http.ResponseWriter, r *http.Request
 }
 
 func (h *ExerciseHandler) DeleteExercise(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	userIDStr, ok := UserIDFromContext(r.Context())
 	if !ok {
 		log.Printf("[DELETE_EXERCISE] false from context")
@@ -166,7 +167,7 @@ func (h *ExerciseHandler) DeleteExercise(w http.ResponseWriter, r *http.Request)
 
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		log.Printf("[GET_EXERCISE] invalid format userID from token: %v", err)
+		log.Printf("[DELETE_EXERCISE] invalid format userID from token: %v", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -191,4 +192,50 @@ func (h *ExerciseHandler) DeleteExercise(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ExerciseHandler) UpdateExercise(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	userIDStr, ok := UserIDFromContext(r.Context())
+	if !ok {
+		log.Printf("[PUT_EXERCISE] false from context")
+		http.Error(w, "missing user_id from middleware", http.StatusInternalServerError)
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		log.Printf("[PUT_EXERCISE] invalid format userID from token: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	var exerciseUPD dto.ExerciseUpdateReqDTO
+	if err := json.NewDecoder(r.Body).Decode(&exerciseUPD); err != nil {
+		http.Error(w, "something wrong in request", http.StatusBadRequest)
+		return
+	}
+
+	exerciseID, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "invalid id in path value", http.StatusBadRequest)
+		return
+	}
+
+	err = h.Service.UpdateExercise(userID, exerciseID, exerciseUPD)
+	if err != nil {
+		if err == domain.ErrExerciseNotFound {
+			http.Error(w, "nothing is changed", http.StatusNoContent) //need to know !
+			return
+		}
+		log.Printf("[PUT_EXERCISE] internal server error: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{"message": "ok"}); err != nil {
+		log.Printf("[PUT_EXERCISE] encoder is failed: %v", err)
+	}
 }

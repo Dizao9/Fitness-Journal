@@ -105,3 +105,20 @@ func (s *ExerciseStorage) DeleteExercise(exerciseID int) error {
 
 	return nil
 }
+
+func (s *ExerciseStorage) UpdateExercise(exercise domain.Exercise) error {
+	res, err := s.DB.Exec(`UPDATE exercises SET name = $1, muscle_group = $2, description = $3
+	WHERE id = $4`, exercise.Name, exercise.MuscleGroup, exercise.Description, exercise.ID)
+	if err != nil {
+		return err
+	}
+
+	countAff, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if countAff == 0 {
+		return domain.ErrExerciseNotFound //need to change
+	}
+	return nil
+}

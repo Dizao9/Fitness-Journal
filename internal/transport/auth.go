@@ -30,9 +30,12 @@ func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 
 type AuthService interface {
 	Register(req dto.RegisterUser) (uuid.UUID, error)
-	Login(email string, password string) (string, error)
-	ParseToken(token string) (*service.CustomClaims, error)
+	Login(email string, password string) (service.TokenPair, error)
+	ParseAccessToken(tokenStr string) (*service.CustomClaims, error)
+	ParseRefreshToken(tokenStr string) (*service.RefreshClaims, error)
 	ExistsByID(id uuid.UUID) (bool, error)
+	Refresh(refreshToken string) (service.TokenPair, error)
+	LogOut(jti uuid.UUID) (bool, error)
 }
 
 type AuthHandler struct {
@@ -105,6 +108,28 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *AuthHandler) SetTokenCookie(w http.ResponseWriter, tokenPair service.TokenPair) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    tokenPair.AccessToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false, //on prodaction = true
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   30 * 60,
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    tokenPair.RefreshToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false, //on prodaction = true
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   30 * 24 * 60 * 60,
+	})
+}
+
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var u dto.LoginUser
 	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
@@ -122,25 +147,18 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.AuthSvc.Login(u.Email, u.Password)
+	tokenPair, err := h.AuthSvc.Login(u.Email, u.Password)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidCredentials) {
 			http.Error(w, "login error", http.StatusUnauthorized)
 			return
 		}
+		log.Printf("[LOGIN] internal server error: %v", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     "access_token",
-		Value:    token,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   false, //on prodaction = true
-		SameSite: http.SameSiteStrictMode,
-		MaxAge:   15 * 60 * 60,
-	})
+	h.SetTokenCookie(w, tokenPair)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -150,37 +168,81 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	refreshCookie, err := r.Cookie("refresh_token")
+	if err != nil {
+		http.Error(w, "refresh_token cookie is required", http.StatusUnauthorized)
+		return
+	}
+	refreshTokenStr := refreshCookie.Value
+	if refreshTokenStr == "" {
+		http.Error(w, "refresh_token cookie is required", http.StatusUnauthorized)
+		return
+	}
+
+	tokenPair, err := h.AuthSvc.Refresh(refreshTokenStr)
+	if err != nil {
+		http.Error(w, "authorization problem", http.StatusUnauthorized)
+		return
+	}
+
+	h.SetTokenCookie(w, tokenPair)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]string{"message": "ok"}); err != nil {
+		log.Printf("[REFRESH] encoder failed: %v", err)
+	}
+}
+
+func (h *AuthHandler) LogOut(w http.ResponseWriter, r *http.Request) {
+	refreshCokie, err := r.Cookie("refresh_token")
+	if err == nil && refreshCokie.Value != "" {
+		claims, err := h.AuthSvc.ParseRefreshToken(refreshCokie.Value)
+		if err == nil {
+			_, err := h.AuthSvc.LogOut(claims.JTI)
+			if err != nil {
+				log.Printf("[LOGOUT] db failed: %v", err)
+			}
+		}
+	}
+
+	h.clearAuthCookies(w)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *AuthHandler) clearAuthCookies(w http.ResponseWriter) {
+	cookieNames := []string{"access_token", "refresh_token"}
+	for _, name := range cookieNames {
+		http.SetCookie(w, &http.Cookie{
+			Name:     name,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   false,
+			SameSite: http.SameSiteStrictMode,
+		})
+	}
+}
+
 func (h *AuthHandler) AuthMiddlware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("access_token")
 		if err != nil {
-			http.Error(w, "token cookie is required", http.StatusUnauthorized)
+			http.Error(w, "access_token cookie is required", http.StatusUnauthorized)
 			return
 		}
 		tokenStr := cookie.Value
 		if tokenStr == "" {
-			http.Error(w, "token cookie is required", http.StatusBadRequest)
+			http.Error(w, "access_token cookie is required", http.StatusUnauthorized)
 			return
 		}
-		claims, err := h.AuthSvc.ParseToken(tokenStr)
+		claims, err := h.AuthSvc.ParseAccessToken(tokenStr)
 		if err != nil {
 			http.Error(w, "some tokens problem", http.StatusUnauthorized)
 			return
 		}
 
-		exists, err := h.AuthSvc.ExistsByID(claims.UserID)
-		if err != nil {
-			log.Printf("[AUTH_MIDDLEWARE] db was failed: %v", err)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		if !exists {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "user not found"})
-			return
-		}
 		ctx := ContextWithUserID(r.Context(), claims.UserID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

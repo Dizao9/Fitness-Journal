@@ -25,6 +25,8 @@ func NewRouter(handlers *transport.Handlers) *http.ServeMux {
 	//auth block
 	mux.HandleFunc("POST /auth/register", handlers.Auth.RegisterUser)
 	mux.HandleFunc("POST /auth/login", handlers.Auth.Login)
+	mux.HandleFunc("POST /auth/refresh", handlers.Auth.Refresh)
+	mux.HandleFunc("POST /auth/logout", handlers.Auth.LogOut)
 	//user block
 	mux.Handle("GET /athlete/profile", protected(http.HandlerFunc(handlers.Athlete.GetProfile)))
 	mux.Handle("PUT /athlete/profile", protected(http.HandlerFunc(handlers.Athlete.UpdateUserProfile)))

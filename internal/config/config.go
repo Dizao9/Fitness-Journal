@@ -8,9 +8,10 @@ import (
 )
 
 type Config struct {
-	Port      string
-	DSN       string
-	JWTSecret string
+	Port             string
+	DSN              string
+	JWTSecret        string
+	RefreshJWTSecret string
 }
 
 func LoadConfig() (*Config, error) {
@@ -21,6 +22,7 @@ func LoadConfig() (*Config, error) {
 	port := os.Getenv("PORT")
 	dsn := os.Getenv("DSN")
 	jwtSecret := os.Getenv("JWT_SECRET")
+	refreshJWTSecret := os.Getenv("REFRESH_JWT_SECRET")
 
 	if port == "" {
 		log.Fatalf("please, set PORT env")
@@ -34,9 +36,14 @@ func LoadConfig() (*Config, error) {
 		log.Fatalf("please, set JWT_SECRET env")
 	}
 
+	if refreshJWTSecret == "" {
+		log.Fatalf("please, set REFRESH_JWT_SECRET")
+	}
+
 	return &Config{
-		Port:      port,
-		DSN:       dsn,
-		JWTSecret: jwtSecret,
+		Port:             port,
+		DSN:              dsn,
+		JWTSecret:        jwtSecret,
+		RefreshJWTSecret: refreshJWTSecret,
 	}, nil
 }

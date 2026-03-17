@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
 	"github.com/google/uuid"
@@ -116,4 +117,22 @@ func (s *AthleteStorage) ExistsByID(id uuid.UUID) (bool, error) {
 		return false, fmt.Errorf("db check failed: %v", err)
 	}
 	return exists, err
+}
+
+func (s *AthleteStorage) SaveRefreshToken(athleteID uuid.UUID, jti uuid.UUID, expiresAt time.Time, refreshToken string) error {
+	query := `INSERT INTO refresh_tokens (athlete_id, jti, token, expires_at) VALUES ($1, $2, $3, $4)`
+	_, err := s.DB.Exec(query, athleteID, jti, refreshToken, expiresAt)
+	return err
+}
+
+func (s *AthleteStorage) DeleteRefreshToken(jti uuid.UUID) (bool, error) {
+	res, err := s.DB.Exec(`DELETE FROM refresh_tokens WHERE jti = $1`, jti)
+	if err != nil {
+		return false, err
+	}
+	countAff, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return countAff > 0, err
 }

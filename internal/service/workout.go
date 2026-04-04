@@ -22,5 +22,11 @@ func NewWorkoutService(s WorkoutStorage) *WorkoutService {
 }
 
 func (s *WorkoutService) CreateWorkout(ctx context.Context, workout domain.Workout) (uuid.UUID, error) {
+	if workout.GradeOfTraining != nil && (*workout.GradeOfTraining < 1 || *workout.GradeOfTraining > 10) {
+		return uuid.Nil, domain.ErrInvalidGrade
+	}
+	if workout.Status == domain.WorkoutStatusFinished && len(workout.Sets) == 0 {
+		return uuid.Nil, domain.ErrNoSetsInFinishedWorkout
+	}
 	return s.Store.CreateWorkout(ctx, workout)
 }

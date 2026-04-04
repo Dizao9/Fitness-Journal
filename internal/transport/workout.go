@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
 	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
@@ -55,6 +56,7 @@ func (h *WorkoutHandler) CreateTraining(w http.ResponseWriter, r *http.Request) 
 
 	workoutDomain.DateOfTraining = workout.DateOfTraining
 
+	workoutDomain.Sets = make([]domain.Set, 0, len(workout.Sets))
 	for _, v := range workout.Sets {
 		workoutDomain.Sets = append(workoutDomain.Sets, domain.Set{
 			ExerciseID: v.ExerciseID,
@@ -64,8 +66,9 @@ func (h *WorkoutHandler) CreateTraining(w http.ResponseWriter, r *http.Request) 
 			Rpe:        v.Rpe,
 		})
 	}
-
-	id, err := h.Service.CreateWorkout(r.Context(), workoutDomain)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	id, err := h.Service.CreateWorkout(ctx, workoutDomain)
 	if err != nil {
 		log.Printf("[CREATE_WORKOUT] internal server error: %v", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -74,7 +77,7 @@ func (h *WorkoutHandler) CreateTraining(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(map[string]string{"message": id.String()}); err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]string{"id": id.String()}); err != nil {
 		log.Printf("[CREATE_WORKOUT] Encoder failed :%v", err)
 	}
 }

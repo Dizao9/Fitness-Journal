@@ -9,6 +9,7 @@ type Services struct {
 	AuthService     *AuthService
 	ExerciseService *ExerciseService
 	AthleteService  *AthleteService
+	WorkoutService  *WorkoutService
 }
 
 func NewServices(storage *storage.Storage, config *config.Config) *Services {
@@ -16,5 +17,6 @@ func NewServices(storage *storage.Storage, config *config.Config) *Services {
 		AuthService:     NewAuthService(storage.Athlete, config),
 		ExerciseService: NewExerciseService(storage.Exercise),
 		AthleteService:  NewAthleteService(storage.Athlete, config),
+		WorkoutService:  NewWorkoutService(storage.Workout),
 	}
 }

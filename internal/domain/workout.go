@@ -11,7 +11,7 @@ const WorkoutStatusFinished string = "finished"
 
 type Workout struct {
 	ID              uuid.UUID
-	TotalTime       int
+	TotalTime       *int
 	GradeOfTraining *int
 	DateOfTraining  time.Time
 	AthleteID       uuid.UUID

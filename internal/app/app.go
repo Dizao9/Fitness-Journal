@@ -31,7 +31,8 @@ func NewRouter(handlers *transport.Handlers) *http.ServeMux {
 	mux.Handle("GET /athlete/profile", protected(http.HandlerFunc(handlers.Athlete.GetProfile)))
 	mux.Handle("PUT /athlete/profile", protected(http.HandlerFunc(handlers.Athlete.UpdateUserProfile)))
 	mux.Handle("DELETE /athlete/profile", protected(http.HandlerFunc(handlers.Athlete.DeleteUser)))
-
+	//workout block
+	mux.Handle("POST /workout", protected(http.HandlerFunc(handlers.Workout.CreateTraining)))
 	return mux
 }
 

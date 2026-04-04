@@ -136,3 +136,4 @@ func (s *AthleteStorage) DeleteRefreshToken(jti uuid.UUID) (bool, error) {
 	}
 	return countAff > 0, err
 }
+

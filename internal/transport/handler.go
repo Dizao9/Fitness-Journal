@@ -6,6 +6,7 @@ type Handlers struct {
 	Auth     *AuthHandler
 	Athlete  *AthleteHandler
 	Exercise *ExerciseHandler
+	Workout  *WorkoutHandler
 }
 
 func NewHandlers(services *service.Services) *Handlers {
@@ -13,5 +14,6 @@ func NewHandlers(services *service.Services) *Handlers {
 		Auth:     NewAuthHandler(services.AuthService),
 		Athlete:  NewAthleteHandler(services.AthleteService),
 		Exercise: NewExerciseHandler(services.ExerciseService),
+		Workout:  NewWorkoutHandler(services.WorkoutService),
 	}
 }

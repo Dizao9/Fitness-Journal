@@ -47,7 +47,7 @@ func (s *AthleteStorage) CreateAthlete(athlete domain.Athlete) (uuid.UUID, error
 	}
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return id, nil
+		return uuid.Nil, fmt.Errorf("failed to parse generated uuid: %w", err)
 	}
 
 	return id, nil
@@ -136,4 +136,3 @@ func (s *AthleteStorage) DeleteRefreshToken(jti uuid.UUID) (bool, error) {
 	}
 	return countAff > 0, err
 }
-

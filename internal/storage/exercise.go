@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"strconv"
 
@@ -67,6 +68,7 @@ func (s *ExerciseStorage) GetExercises(ctx context.Context, userID uuid.UUID, fi
 		err = rows.Scan(&exercise.ID, &exercise.Name, &exercise.MuscleGroup, &exercise.Description, &exercise.AthleteID)
 		if err != nil {
 			log.Printf("[GET_EXERCISES_STORAGE] error: %v", err)
+			return nil, fmt.Errorf("failed to scan exercise row: %w", err)
 		}
 
 		exercises = append(exercises, exercise)

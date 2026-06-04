@@ -3,7 +3,6 @@ package service
 import (
 	"github.com/Dizao9/Fitness-Journal/internal/config"
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
-	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
 	"github.com/google/uuid"
 )
 
@@ -25,13 +24,13 @@ func NewAthleteService(Str AthleteStorage, Cnf *config.Config) *AthleteService {
 	}
 }
 
-func (a *AthleteService) GetByUserID(userID uuid.UUID) (dto.UserProfileResponseDTO, error) {
+func (a *AthleteService) GetProfile(userID uuid.UUID) (AthleteProfileOutput, error) {
 	athlete, err := a.Store.GetByUserID(userID)
 	if err != nil {
-		return dto.UserProfileResponseDTO{}, err
+		return AthleteProfileOutput{}, err
 	}
 
-	resp := dto.UserProfileResponseDTO{
+	resp := AthleteProfileOutput{
 		ID:       athlete.ID,
 		Username: athlete.Username,
 		Email:    athlete.Email,
@@ -53,7 +52,7 @@ func (a *AthleteService) GetByUserID(userID uuid.UUID) (dto.UserProfileResponseD
 	return resp, nil
 }
 
-func (s *AthleteService) UpdateUser(userID uuid.UUID, upd dto.UpdateProfileRequest) error {
+func (s *AthleteService) UpdateProfile(userID uuid.UUID, upd UpdateProfileInput) error {
 	athlete, err := s.Store.GetByUserID(userID)
 	if err != nil {
 		return err
@@ -78,6 +77,6 @@ func (s *AthleteService) UpdateUser(userID uuid.UUID, upd dto.UpdateProfileReque
 	return s.Store.UpdateUser(userID, athlete)
 }
 
-func (s *AthleteService) DeleteUser(userID uuid.UUID) error {
+func (s *AthleteService) DeleteProfile(userID uuid.UUID) error {
 	return s.Store.DeleteUser(userID)
 }

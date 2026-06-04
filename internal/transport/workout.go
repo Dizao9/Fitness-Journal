@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Dizao9/Fitness-Journal/internal/domain"
+	"github.com/Dizao9/Fitness-Journal/internal/service"
 	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
 	"github.com/google/uuid"
 )
 
 type WorkoutService interface {
-	CreateWorkout(ctx context.Context, workout domain.Workout) (uuid.UUID, error)
+	CreateWorkout(ctx context.Context, input service.CreateWorkoutInput) (uuid.UUID, error)
 }
 
 type WorkoutHandler struct {
@@ -32,43 +32,35 @@ func (h *WorkoutHandler) CreateTraining(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-	var workout dto.CreateWorkoutReq
-	if err := json.NewDecoder(r.Body).Decode(&workout); err != nil {
+	var workoutCreateReq dto.CreateWorkoutReq
+	if err := json.NewDecoder(r.Body).Decode(&workoutCreateReq); err != nil {
 		http.Error(w, "invalid body request", http.StatusBadRequest)
 		return
 	}
 
-	workoutDomain := domain.Workout{
+	serviceSets := make([]service.CreateSetInput, len(workoutCreateReq.Sets))
+	for i, s := range workoutCreateReq.Sets {
+		serviceSets[i] = service.CreateSetInput{
+			ExerciseID: s.ExerciseID,
+			Weight:     s.Weight,
+			SetOrder:   s.SetOrder,
+			Reps:       s.Reps,
+			Rpe:        s.Rpe,
+		}
+	}
+
+	workoutInput := service.CreateWorkoutInput{
 		AthleteID:       userID,
-		GradeOfTraining: workout.GradeOfTraining,
+		TotalTime:       workoutCreateReq.TotalTime,
+		GradeOfTraining: workoutCreateReq.GradeOfTraining,
+		DateOfTraining:  workoutCreateReq.DateOfTraining,
+		Status:          workoutCreateReq.Status,
+		Sets:            serviceSets,
 	}
 
-	switch workout.Status {
-	case domain.WorkoutStatusFinished:
-		workoutDomain.Status = domain.WorkoutStatusFinished
-	case domain.WorkoutStatusInProgress:
-		workoutDomain.Status = domain.WorkoutStatusInProgress
-	default:
-		http.Error(w, "invalid workout status", http.StatusBadRequest)
-		return
-	}
-	workoutDomain.TotalTime = workout.TotalTime
-
-	workoutDomain.DateOfTraining = workout.DateOfTraining
-
-	workoutDomain.Sets = make([]domain.Set, 0, len(workout.Sets))
-	for _, v := range workout.Sets {
-		workoutDomain.Sets = append(workoutDomain.Sets, domain.Set{
-			ExerciseID: v.ExerciseID,
-			Weight:     v.Weight,
-			SetOrder:   v.SetOrder,
-			Reps:       v.Reps,
-			Rpe:        v.Rpe,
-		})
-	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	id, err := h.Service.CreateWorkout(ctx, workoutDomain)
+	id, err := h.Service.CreateWorkout(ctx, workoutInput)
 	if err != nil {
 		log.Printf("[CREATE_WORKOUT] internal server error: %v", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)

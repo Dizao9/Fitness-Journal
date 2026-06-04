@@ -29,7 +29,7 @@ func TestWorkoutService_CreateWorkout_Success(t *testing.T) {
 	}
 
 	service := NewWorkoutService(mockStorage)
-	workout := domain.Workout{
+	workout := CreateWorkoutInput{
 		AthleteID: uuid.New(),
 		Status:    domain.WorkoutStatusInProgress,
 	}
@@ -65,7 +65,7 @@ func TestWorkoutService_CreateWorkout_GradeBoundary(t *testing.T) {
 		service := NewWorkoutService(mockStorage)
 
 		grade := tc.grade
-		workout := domain.Workout{
+		workout := CreateWorkoutInput{
 			AthleteID:       uuid.New(),
 			Status:          domain.WorkoutStatusInProgress,
 			GradeOfTraining: &grade,
@@ -76,8 +76,8 @@ func TestWorkoutService_CreateWorkout_GradeBoundary(t *testing.T) {
 			if err == nil {
 				t.Fatalf("expected error, got nil")
 			}
-			if err != domain.ErrInvalidGrade {
-				t.Fatalf("expected error: %v, got :%v", domain.ErrInvalidGrade, err)
+			if err != domain.ErrInvalidGradeOfTraining {
+				t.Fatalf("expected error: %v, got :%v", domain.ErrInvalidGradeOfTraining, err)
 			}
 		} else {
 			if err != nil {

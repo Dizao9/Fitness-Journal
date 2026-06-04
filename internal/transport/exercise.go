@@ -10,16 +10,17 @@ import (
 	"time"
 
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
+	"github.com/Dizao9/Fitness-Journal/internal/service"
 	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
 	"github.com/google/uuid"
 )
 
 type ExerciseService interface {
-	CreateCustomExercise(exerReq dto.CreateExerciseRequestDTO) (int, error)
-	GetPageOfExercise(ctx context.Context, userID uuid.UUID, filter string, limit, offset int) ([]dto.ExerciseForPageDTO, error)
-	GetExerciseByID(userID uuid.UUID, exerciseID int) (dto.ExerciseDTO, error)
+	CreateCustomExercise(exerReq service.CreateExerciseInput) (int, error)
+	GetPageOfExercise(ctx context.Context, userID uuid.UUID, filter string, limit, offset int) ([]service.ExercisePageOutput, error)
+	GetExerciseByID(userID uuid.UUID, exerciseID int) (service.ExerciseOutput, error)
 	DeleteExerciseByID(userID uuid.UUID, exerciseID int) error
-	UpdateExercise(userID uuid.UUID, exerciseID int, exerciseUPD dto.ExerciseUpdateReqDTO) error
+	UpdateExercise(userID uuid.UUID, exerciseID int, exerciseUPD service.UpdateExerciseInput) error
 }
 
 type ExerciseHandler struct {
@@ -39,17 +40,23 @@ func (h *ExerciseHandler) PostExercise(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var newExercise dto.CreateExerciseRequestDTO
-	if err := json.NewDecoder(r.Body).Decode(&newExercise); err != nil {
+	var newExerciseDTO dto.CreateExerciseRequestDTO
+	if err := json.NewDecoder(r.Body).Decode(&newExerciseDTO); err != nil {
 		http.Error(w, "something wrong in request", http.StatusBadRequest)
 		return
 	}
-	if newExercise.Name == "" {
+	if newExerciseDTO.Name == "" {
 		http.Error(w, "fields required", http.StatusBadRequest)
 		return
 	}
 
-	newExercise.AthleteID = &userID
+	newExercise := service.CreateExerciseInput{
+		Name:        newExerciseDTO.Name,
+		MuscleGroup: newExerciseDTO.MuscleGroup,
+		Description: newExerciseDTO.Description,
+		AthleteID:   &userID,
+	}
+
 	id, err := h.Service.CreateCustomExercise(newExercise)
 	if err != nil {
 		log.Printf("[CREATE_EXERCISE] internal server error: %v", err)
@@ -73,7 +80,7 @@ func (h *ExerciseHandler) GetPageOfExercise(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	context, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	query := r.URL.Query()
@@ -89,15 +96,27 @@ func (h *ExerciseHandler) GetPageOfExercise(w http.ResponseWriter, r *http.Reque
 
 	filter := query.Get("filter")
 
-	ListOfExercises, err := h.Service.GetPageOfExercise(context, userID, filter, limit, page)
+	ListOfExercises, err := h.Service.GetPageOfExercise(ctx, userID, filter, limit, page)
 	if err != nil {
 		log.Printf("[GET_EXERCISES internal server error: %v]", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	ListOfExercisesDTO := make([]dto.ExerciseForPageDTO, len(ListOfExercises))
+	for i, exercise := range ListOfExercises {
+		ListOfExercisesDTO[i] = dto.ExerciseForPageDTO{
+			ID:          exercise.ID,
+			Name:        exercise.Name,
+			MuscleGroup: exercise.MuscleGroup,
+			IsOwner:     exercise.IsOwner,
+			IsSystem:    exercise.IsSystem,
+		}
+	}
+	//Решил не добавлять проверку на длину полученных упражнений - если нет, то нет, просто пустая страница будет
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(ListOfExercises); err != nil {
+	if err := json.NewEncoder(w).Encode(ListOfExercisesDTO); err != nil {
 		log.Printf("[GET_EXERCISES] encode problem :%v", err)
 	}
 }
@@ -127,10 +146,19 @@ func (h *ExerciseHandler) GetExerciseByID(w http.ResponseWriter, r *http.Request
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	exerciseDTO := dto.ExerciseDTO{
+		ID:          exercise.ID,
+		Name:        exercise.Name,
+		MuscleGroup: exercise.MuscleGroup,
+		Description: exercise.Description,
+		IsOwner:     exercise.IsOwner,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(w).Encode(exercise); err != nil {
+	if err := json.NewEncoder(w).Encode(exerciseDTO); err != nil {
 		log.Printf("[GET_EXERCISE] encode problem :%v", err)
 	}
 }
@@ -174,8 +202,8 @@ func (h *ExerciseHandler) UpdateExercise(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var exerciseUPD dto.ExerciseUpdateReqDTO
-	if err := json.NewDecoder(r.Body).Decode(&exerciseUPD); err != nil {
+	var exerciseUpdateRequest dto.ExerciseUpdateReqDTO
+	if err := json.NewDecoder(r.Body).Decode(&exerciseUpdateRequest); err != nil {
 		http.Error(w, "something wrong in request", http.StatusBadRequest)
 		return
 	}
@@ -184,6 +212,12 @@ func (h *ExerciseHandler) UpdateExercise(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		http.Error(w, "invalid id in path value", http.StatusBadRequest)
 		return
+	}
+
+	exerciseUPD := service.UpdateExerciseInput{
+		Name:        exerciseUpdateRequest.Name,
+		MuscleGroup: exerciseUpdateRequest.MuscleGroup,
+		Description: exerciseUpdateRequest.Description,
 	}
 
 	err = h.Service.UpdateExercise(userID, exerciseID, exerciseUPD)
@@ -199,7 +233,7 @@ func (h *ExerciseHandler) UpdateExercise(w http.ResponseWriter, r *http.Request)
 
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(map[string]string{"message": "ok"}); err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]string{"message": "ok"}); err != nil { //Как будто бы можно при UPDATE везде возвращать обновлённую структуру
 		log.Printf("[PUT_EXERCISE] encoder is failed: %v", err)
 	}
 }

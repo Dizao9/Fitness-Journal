@@ -29,8 +29,8 @@ func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 }
 
 type AuthService interface {
-	Register(req dto.RegisterUser) (uuid.UUID, error)
-	Login(email string, password string) (service.TokenPair, error)
+	Register(req service.RegisterInput) (uuid.UUID, error)
+	Login(loginData service.LoginInput) (service.TokenPair, error)
 	ParseAccessToken(tokenStr string) (*service.CustomClaims, error)
 	ParseRefreshToken(tokenStr string) (*service.RefreshClaims, error)
 	ExistsByID(id uuid.UUID) (bool, error)
@@ -69,13 +69,13 @@ func (h *AuthHandler) ValidateUser(u dto.RegisterUser) []string {
 }
 
 func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
-	var u dto.RegisterUser
-	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
+	var userReq dto.RegisterUser
+	if err := json.NewDecoder(r.Body).Decode(&userReq); err != nil {
 		http.Error(w, "problem to decode your data", http.StatusBadRequest)
 		return
 	}
 
-	if errs := h.ValidateUser(u); len(errs) > 0 {
+	if errs := h.ValidateUser(userReq); len(errs) > 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status": "error",
@@ -84,7 +84,15 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	idStr, err := h.AuthSvc.Register(u)
+	user := service.RegisterInput{
+		Username: userReq.Username,
+		Email:    userReq.Email,
+		Password: userReq.Password,
+		Name:     userReq.Name,
+		Age:      userReq.Age,
+	}
+
+	idStr, err := h.AuthSvc.Register(user)
 	if err != nil {
 		if errors.Is(err, domain.ErrUserAlreadyExists) {
 			http.Error(w, "user already exists", http.StatusBadRequest)
@@ -147,7 +155,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenPair, err := h.AuthSvc.Login(u.Email, u.Password)
+	userLoginData := service.LoginInput{
+		Email:    u.Email,
+		Password: u.Password,
+	}
+	tokenPair, err := h.AuthSvc.Login(userLoginData)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidCredentials) {
 			http.Error(w, "login error", http.StatusUnauthorized)

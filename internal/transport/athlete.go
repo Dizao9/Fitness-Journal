@@ -7,14 +7,15 @@ import (
 	"net/http"
 
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
+	"github.com/Dizao9/Fitness-Journal/internal/service"
 	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
 	"github.com/google/uuid"
 )
 
 type AthleteService interface {
-	GetByUserID(userID uuid.UUID) (dto.UserProfileResponseDTO, error)
-	UpdateUser(userID uuid.UUID, upd dto.UpdateProfileRequest) error
-	DeleteUser(userID uuid.UUID) error
+	GetProfile(userID uuid.UUID) (service.AthleteProfileOutput, error)
+	UpdateProfile(userID uuid.UUID, upd service.UpdateProfileInput) error
+	DeleteProfile(userID uuid.UUID) error
 }
 
 type AthleteHandler struct {
@@ -35,7 +36,7 @@ func (h *AthleteHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := h.AthlServ.GetByUserID(userID)
+	profile, err := h.AthlServ.GetProfile(userID)
 	if err != nil {
 		if errors.Is(err, domain.ErrUserNotFound) {
 			http.Error(w, "user not found", http.StatusNotFound)
@@ -46,9 +47,19 @@ func (h *AthleteHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	responseDTO := dto.UserProfileResponseDTO{
+		ID:           profile.ID,
+		Name:         profile.Name,
+		Age:          profile.Age,
+		Username:     profile.Username,
+		CurrentCycle: profile.CurrentCycle,
+		Gender:       profile.Gender,
+		Email:        profile.Email,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	if err := json.NewEncoder(w).Encode(responseDTO); err != nil {
 		log.Printf("[PROFILE] encoder failed: %v", err)
 	}
 }
@@ -61,14 +72,21 @@ func (h *AthleteHandler) UpdateUserProfile(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var upd dto.UpdateProfileRequest
+	var req dto.UpdateProfileRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request data", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.AthlServ.UpdateUser(userID, upd); err != nil {
+	input := service.UpdateProfileInput{
+		Name:         req.Name,
+		Age:          req.Age,
+		Username:     req.Username,
+		CurrentCycle: req.CurrentCycle,
+	}
+
+	if err := h.AthlServ.UpdateProfile(userID, input); err != nil {
 		if errors.Is(err, domain.ErrUserNotFound) {
 			http.Error(w, "user not found", http.StatusNotFound)
 			return
@@ -92,7 +110,7 @@ func (h *AthleteHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.AthlServ.DeleteUser(userID)
+	err := h.AthlServ.DeleteProfile(userID)
 	if err != nil {
 		if errors.Is(err, domain.ErrUserNotFound) {
 			http.Error(w, "user not found", http.StatusNotFound)
@@ -104,7 +122,4 @@ func (h *AthleteHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNoContent)
-	if err := json.NewEncoder(w).Encode(map[string]string{"message": "ok"}); err != nil {
-		log.Printf("[DELETE] internal server error: %v", err)
-	}
 }

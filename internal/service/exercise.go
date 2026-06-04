@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
-	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
 	"github.com/google/uuid"
 )
 
@@ -26,7 +25,7 @@ func NewExerciseService(s ExerciseStorage) *ExerciseService {
 	}
 }
 
-func (s *ExerciseService) CreateCustomExercise(exercise dto.CreateExerciseRequestDTO) (int, error) {
+func (s *ExerciseService) CreateCustomExercise(exercise CreateExerciseInput) (int, error) {
 	newExercise := domain.Exercise{
 		Name:        exercise.Name,
 		MuscleGroup: exercise.MuscleGroup,
@@ -40,7 +39,7 @@ func (s *ExerciseService) CreateCustomExercise(exercise dto.CreateExerciseReques
 	return id, nil
 }
 
-func (s *ExerciseService) GetPageOfExercise(ctx context.Context, userID uuid.UUID, filter string, limit, page int) ([]dto.ExerciseForPageDTO, error) {
+func (s *ExerciseService) GetPageOfExercise(ctx context.Context, userID uuid.UUID, filter string, limit, page int) ([]ExercisePageOutput, error) {
 	offset := (page - 1) * limit
 
 	ListOfExercises, err := s.Store.GetExercises(ctx, userID, filter, limit, offset)
@@ -48,13 +47,13 @@ func (s *ExerciseService) GetPageOfExercise(ctx context.Context, userID uuid.UUI
 		return nil, err
 	}
 
-	DTOExercises := make([]dto.ExerciseForPageDTO, len(ListOfExercises))
+	ExercisesPageOutput := make([]ExercisePageOutput, len(ListOfExercises))
 	for i, v := range ListOfExercises {
 		isOwner := false
 		if v.AthleteID != nil {
 			isOwner = (*v.AthleteID == userID)
 		}
-		DTOExercises[i] = dto.ExerciseForPageDTO{
+		ExercisesPageOutput[i] = ExercisePageOutput{
 			ID:          v.ID,
 			Name:        v.Name,
 			MuscleGroup: v.MuscleGroup,
@@ -63,20 +62,20 @@ func (s *ExerciseService) GetPageOfExercise(ctx context.Context, userID uuid.UUI
 		}
 	}
 
-	return DTOExercises, nil
+	return ExercisesPageOutput, nil
 }
 
-func (s *ExerciseService) GetExerciseByID(userID uuid.UUID, exerciseID int) (dto.ExerciseDTO, error) {
+func (s *ExerciseService) GetExerciseByID(userID uuid.UUID, exerciseID int) (ExerciseOutput, error) {
 	exercise, err := s.Store.GetExerciseByID(userID, exerciseID)
 	if err != nil {
-		return dto.ExerciseDTO{}, err
+		return ExerciseOutput{}, err
 	}
 
 	isOwner := false
 	if exercise.AthleteID != nil {
 		isOwner = (*exercise.AthleteID == userID)
 	}
-	return dto.ExerciseDTO{
+	return ExerciseOutput{
 		ID:          exercise.ID,
 		Name:        exercise.Name,
 		MuscleGroup: exercise.MuscleGroup,
@@ -98,7 +97,7 @@ func (s *ExerciseService) DeleteExerciseByID(userID uuid.UUID, exerciseID int) e
 	return s.Store.DeleteExercise(exerciseID)
 }
 
-func (s *ExerciseService) UpdateExercise(userID uuid.UUID, exerciseID int, exerciseUPD dto.ExerciseUpdateReqDTO) error {
+func (s *ExerciseService) UpdateExercise(userID uuid.UUID, exerciseID int, exerciseUPD UpdateExerciseInput) error {
 	exercise, err := s.Store.GetExerciseByID(userID, exerciseID)
 	if err != nil {
 		return err
@@ -114,5 +113,5 @@ func (s *ExerciseService) UpdateExercise(userID uuid.UUID, exerciseID int, exerc
 		exercise.Description = *&exerciseUPD.Description
 	}
 
-	return s.Store.UpdateExercise(exercise)
+	return s.Store.UpdateExercise(exercise) //ВОПРОС: А стоит ли так делать? мне кажется стоит ловить ошибку тут
 }

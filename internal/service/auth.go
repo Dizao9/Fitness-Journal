@@ -7,26 +7,25 @@ import (
 
 	"github.com/Dizao9/Fitness-Journal/internal/config"
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
-	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type TokenPair struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken  string
+	RefreshToken string
 }
 
 type RefreshClaims struct {
-	UserID uuid.UUID `json:"user_id"`
-	JTI    uuid.UUID `json:"jti"`
+	UserID uuid.UUID
+	JTI    uuid.UUID
 	jwt.RegisteredClaims
 }
 type CustomClaims struct {
-	UserID uuid.UUID `json:"user_id"`
-	Role   string    `json:"role"`
-	Email  string    `json:"email"`
+	UserID uuid.UUID
+	Role   string
+	Email  string
 	jwt.RegisteredClaims
 }
 
@@ -54,7 +53,7 @@ func NewAuthService(s AuthStorage, c *config.Config) *AuthService {
 	}
 }
 
-func (a *AuthService) Register(req dto.RegisterUser) (uuid.UUID, error) {
+func (a *AuthService) Register(req RegisterInput) (uuid.UUID, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(req.Password), 12)
 	if err != nil {
 		return uuid.Nil, err
@@ -113,8 +112,8 @@ func (a *AuthService) generateToken(id uuid.UUID, role, email string) (TokenPair
 	}, nil
 }
 
-func (a *AuthService) Login(email string, password string) (TokenPair, error) {
-	user, err := a.Store.GetByEmail(email)
+func (a *AuthService) Login(loginData LoginInput) (TokenPair, error) {
+	user, err := a.Store.GetByEmail(loginData.Email)
 	if err != nil {
 		if err == domain.ErrUserNotFound {
 			return TokenPair{}, domain.ErrInvalidCredentials
@@ -123,7 +122,7 @@ func (a *AuthService) Login(email string, password string) (TokenPair, error) {
 		return TokenPair{}, err
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(loginData.Password))
 	if err != nil {
 		return TokenPair{}, domain.ErrInvalidCredentials
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Dizao9/Fitness-Journal/internal/config"
+	"github.com/Dizao9/Fitness-Journal/internal/infrastructure/auth"
 	"github.com/Dizao9/Fitness-Journal/internal/service"
 	"github.com/Dizao9/Fitness-Journal/internal/storage"
 	"github.com/Dizao9/Fitness-Journal/internal/transport"
@@ -36,6 +37,8 @@ func NewRouter(handlers *transport.Handlers) *http.ServeMux {
 	return mux
 }
 
+const cost = 12 //следует вынести в .env
+
 func Run(ctx context.Context) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -46,8 +49,11 @@ func Run(ctx context.Context) error {
 		return fmt.Errorf("failed connect to db: %w", err)
 	}
 
+	tm := auth.NewJWTManager(cfg.AccessJWTSecret, cfg.RefreshJWTSecret)
+	ph := auth.NewBcryptPasswordHasher(cost)
+
 	storage := storage.NewStorage(db)
-	services := service.NewServices(storage, cfg)
+	services := service.NewServices(storage, cfg, tm, ph)
 	handlers := transport.NewHandlers(services)
 
 	mux := NewRouter(handlers)

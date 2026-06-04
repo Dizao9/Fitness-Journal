@@ -12,9 +12,9 @@ type Services struct {
 	WorkoutService  *WorkoutService
 }
 
-func NewServices(storage *storage.Storage, config *config.Config) *Services {
+func NewServices(storage *storage.Storage, config *config.Config, tm TokenManager, ph PasswordHasher) *Services {
 	return &Services{
-		AuthService:     NewAuthService(storage.Athlete, config),
+		AuthService:     NewAuthService(storage.Athlete, tm, ph),
 		ExerciseService: NewExerciseService(storage.Exercise),
 		AthleteService:  NewAthleteService(storage.Athlete, config),
 		WorkoutService:  NewWorkoutService(storage.Workout),

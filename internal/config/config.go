@@ -10,7 +10,7 @@ import (
 type Config struct {
 	Port             string
 	DSN              string
-	JWTSecret        string
+	AccessJWTSecret  string
 	RefreshJWTSecret string
 }
 
@@ -43,7 +43,7 @@ func LoadConfig() (*Config, error) {
 	return &Config{
 		Port:             port,
 		DSN:              dsn,
-		JWTSecret:        jwtSecret,
+		AccessJWTSecret:  jwtSecret,
 		RefreshJWTSecret: refreshJWTSecret,
 	}, nil
 }

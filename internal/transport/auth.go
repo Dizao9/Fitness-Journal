@@ -31,11 +31,10 @@ func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 type AuthService interface {
 	Register(req service.RegisterInput) (uuid.UUID, error)
 	Login(loginData service.LoginInput) (service.TokenPair, error)
-	ParseAccessToken(tokenStr string) (*service.CustomClaims, error)
-	ParseRefreshToken(tokenStr string) (*service.RefreshClaims, error)
 	ExistsByID(id uuid.UUID) (bool, error)
 	Refresh(refreshToken string) (service.TokenPair, error)
-	LogOut(jti uuid.UUID) (bool, error)
+	LogOut(refreshToken string) error
+	ParseAccessToken(tokenStr string) (*service.AccessTokenClaims, error)
 }
 
 type AuthHandler struct {
@@ -209,12 +208,9 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) LogOut(w http.ResponseWriter, r *http.Request) {
 	refreshCokie, err := r.Cookie("refresh_token")
 	if err == nil && refreshCokie.Value != "" {
-		claims, err := h.AuthSvc.ParseRefreshToken(refreshCokie.Value)
-		if err == nil {
-			_, err := h.AuthSvc.LogOut(claims.JTI)
-			if err != nil {
-				log.Printf("[LOGOUT] db failed: %v", err)
-			}
+		err := h.AuthSvc.LogOut(refreshCokie.Value)
+		if err != nil && !errors.Is(err, domain.ErrInvalidCredentials) {
+			log.Printf("[LOGOUT] db failed: %v", err)
 		}
 	}
 

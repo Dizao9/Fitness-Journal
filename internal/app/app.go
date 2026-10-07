@@ -51,9 +51,10 @@ func Run(ctx context.Context) error {
 
 	tm := auth.NewJWTManager(cfg.AccessJWTSecret, cfg.RefreshJWTSecret)
 	ph := auth.NewBcryptPasswordHasher(cost)
+	txManager := storage.NewTransactionManager(db)
 
 	storage := storage.NewStorage(db)
-	services := service.NewServices(storage, cfg, tm, ph)
+	services := service.NewServices(storage, cfg, tm, ph, txManager)
 	handlers := transport.NewHandlers(services)
 
 	mux := NewRouter(handlers)

@@ -9,16 +9,24 @@ import (
 )
 
 type WorkoutStorage interface {
-	CreateWorkout(ctx context.Context, workout domain.Workout) (uuid.UUID, error)
+	InsertWorkout(ctx context.Context, workout domain.Workout) (uuid.UUID, error)
+	InsertSetsBulk(ctx context.Context, workoutID uuid.UUID, sets []domain.Set) error
 }
 
+type ExerciseWorkStorage interface {
+	GetExerciseByIDs(ctx context.Context, userID uuid.UUID, IDs []int) ([]domain.Exercise, error)
+}
 type WorkoutService struct {
-	Store WorkoutStorage
+	WorkoutStore  WorkoutStorage
+	ExerciseStore ExerciseWorkStorage
+	TxManager     TxManager
 }
 
-func NewWorkoutService(s WorkoutStorage) *WorkoutService {
+func NewWorkoutService(ws WorkoutStorage, es ExerciseWorkStorage, tm TxManager) *WorkoutService {
 	return &WorkoutService{
-		Store: s,
+		WorkoutStore:  ws,
+		ExerciseStore: es,
+		TxManager:     tm,
 	}
 }
 
@@ -43,6 +51,14 @@ func (s *WorkoutService) CreateWorkout(ctx context.Context, input CreateWorkoutI
 		Status:          input.Status,
 	}
 
+	expectedExercises := len(workoutDomain.Sets) / 3
+	if expectedExercises < 8 {
+		expectedExercises = 8
+	}
+
+	seen := make(map[int]struct{}, expectedExercises)
+	exerciseIDs := make([]int, 0, expectedExercises)
+
 	workoutDomain.Sets = make([]domain.Set, len(input.Sets))
 	for i, s := range input.Sets {
 		workoutDomain.Sets[i] = domain.Set{
@@ -52,7 +68,45 @@ func (s *WorkoutService) CreateWorkout(ctx context.Context, input CreateWorkoutI
 			Reps:       s.Reps,
 			Rpe:        s.Rpe,
 		}
+		if _, exists := seen[s.ExerciseID]; !exists {
+			seen[s.ExerciseID] = struct{}{}
+			exerciseIDs = append(exerciseIDs, s.ExerciseID)
+		}
 	}
 
-	return s.Store.CreateWorkout(ctx, workoutDomain)
+	var createdWorkoutID uuid.UUID
+
+	err := s.TxManager.Do(ctx, func(txCtx context.Context) error {
+		if len(exerciseIDs) > 0 {
+			foundExercises, err := s.ExerciseStore.GetExerciseByIDs(txCtx, workoutDomain.AthleteID, exerciseIDs)
+
+			if err != nil {
+				return err
+			}
+
+			if len(foundExercises) != len(exerciseIDs) {
+				return domain.ErrNotEnoughPermission
+			}
+		}
+
+		var err error
+		createdWorkoutID, err = s.WorkoutStore.InsertWorkout(txCtx, workoutDomain)
+		if err != nil {
+			return err
+		}
+
+		if len(workoutDomain.Sets) > 0 {
+			err = s.WorkoutStore.InsertSetsBulk(txCtx, createdWorkoutID, workoutDomain.Sets)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	return createdWorkoutID, nil
 }

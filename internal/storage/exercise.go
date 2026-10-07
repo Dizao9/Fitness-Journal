@@ -124,3 +124,28 @@ func (s *ExerciseStorage) UpdateExercise(exercise domain.Exercise) error {
 	}
 	return nil
 }
+
+func (s *ExerciseStorage) GetExerciseByIDs(ctx context.Context, userID uuid.UUID, exerciseIDs []int) ([]domain.Exercise, error) {
+	engine := getQueryEngine(ctx, s.DB)
+
+	query := `SELECT id, name, muscle_group, description, athlete_id FROM exercises
+	WHERE id = ANY($1) AND (athlete_id IS NULL OR athlete_id = $2)`
+
+	rows, err := engine.QueryContext(ctx, query, exerciseIDs, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query: %w", err)
+	}
+	defer rows.Close()
+	exercises := make([]domain.Exercise, 0, len(exerciseIDs))
+	for rows.Next() {
+		var exercise domain.Exercise
+		if err = rows.Scan(&exercise.ID, &exercise.Name, &exercise.MuscleGroup, &exercise.Description, &exercise.AthleteID); err != nil {
+			return nil, fmt.Errorf("failed to scan: %w", err)
+		}
+		exercises = append(exercises, exercise)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+	return exercises, nil
+}

@@ -10,3 +10,6 @@
 # лучше указывать путь от корня)
 /main
 /app
+.agents/
+.antigravitycli/
+vendor/

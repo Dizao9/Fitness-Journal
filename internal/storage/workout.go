@@ -20,60 +20,30 @@ func NewWorkoutStorage(db *sql.DB) *WorkoutStorage {
 	}
 }
 
-func (s *WorkoutStorage) CreateWorkout(ctx context.Context, workout domain.Workout) (uuid.UUID, error) {
-	tx, err := s.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to begin tx: %w", err)
-	}
-	defer tx.Rollback()
-
+func (s *WorkoutStorage) InsertWorkout(ctx context.Context, workout domain.Workout) (uuid.UUID, error) {
+	engine := getQueryEngine(ctx, s.DB)
 	var id uuid.UUID
-	err = tx.QueryRowContext(ctx, `INSERT INTO workouts (total_time, grade_of_training, date_of_training, athlete_id, status)
-	VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-		workout.TotalTime, workout.GradeOfTraining, workout.DateOfTraining, workout.AthleteID, workout.Status).Scan(&id)
-	if err != nil {
-		return uuid.Nil, err
+	err := engine.QueryRowContext(ctx, `INSERT INTO workouts (total_time, grade_of_training, date_of_training, athlete_id, status)
+	VALUES ($1, $2, $3, $4, $5) RETURNING id`, workout.TotalTime, workout.GradeOfTraining, workout.DateOfTraining, workout.AthleteID, workout.Status).Scan(&id)
+
+	return id, err
+}
+
+func (s *WorkoutStorage) InsertSetsBulk(ctx context.Context, workoutID uuid.UUID, sets []domain.Set) error {
+	if len(sets) == 0 {
+		return nil
 	}
 
-	if len(workout.Sets) == 0 {
-		return id, nil
-	}
+	engine := getQueryEngine(ctx, s.DB)
 
-	exerciseIDs := make([]int, 0, len(workout.Sets))
-	seen := make(map[int]struct{})
-	for _, set := range workout.Sets {
-		if _, ok := seen[set.ExerciseID]; !ok {
-			seen[set.ExerciseID] = struct{}{}
-			exerciseIDs = append(exerciseIDs, set.ExerciseID)
-		}
-	}
+	const columnsPerRowSets = 6 //workout_id, exercise_id, weight, set_order, reps, rpe
 
-	ids := make([]interface{}, len(exerciseIDs))
-	for i, id := range exerciseIDs {
-		ids[i] = id
-	}
-
-	query := `SELECT COUNT(*)
-	FROM exercises WHERE id = ANY($1)
-	AND (athlete_id IS NULL OR athlete_id = $2)`
-	var validCount int
-	if err = tx.QueryRowContext(ctx, query, ids, workout.AthleteID).Scan(&validCount); err != nil {
-		return uuid.Nil, fmt.Errorf("failed to check exercise permission: %w", err)
-	}
-
-	if validCount != len(exerciseIDs) {
-		return uuid.Nil, fmt.Errorf("some exercise don't belong to you")
-	}
-
-	const columnsPerRowSets = 6
-
-	valueStrings := make([]string, 0, len(workout.Sets))
-	valueArgs := make([]any, 0, len(workout.Sets)*columnsPerRowSets)
-	//PostgreSQL использует placeholder с $1
+	valueStrings := make([]string, 0, len(sets))
+	valueArgs := make([]any, 0, len(sets)*columnsPerRowSets)
 	plchldrCount := 1
 	var sb strings.Builder
-	for _, set := range workout.Sets {
 
+	for _, set := range sets {
 		sb.WriteString("(")
 		for j := 0; j < columnsPerRowSets; j++ {
 			sb.WriteString(fmt.Sprintf("$%d", plchldrCount+j))
@@ -85,21 +55,16 @@ func (s *WorkoutStorage) CreateWorkout(ctx context.Context, workout domain.Worko
 		valueStrings = append(valueStrings, sb.String())
 		sb.Reset()
 
-		valueArgs = append(valueArgs, id, set.ExerciseID, set.Weight, set.SetOrder, set.Reps, set.Rpe)
+		valueArgs = append(valueArgs, workoutID, set.ExerciseID, set.Weight, set.SetOrder, set.Reps, set.Rpe)
 		plchldrCount += columnsPerRowSets
 	}
 
-	query = fmt.Sprintf(`INSERT INTO sets (workout_id, exercise_id, weight, set_order, reps, rpe) VALUES %s`,
+	query := fmt.Sprintf(`INSERT INTO sets (workout_id, exercise_id, weight, set_order, reps, rpe) VALUES %s`,
 		strings.Join(valueStrings, ", "))
-	_, err = tx.ExecContext(ctx, query, valueArgs...)
 
+	_, err := engine.ExecContext(ctx, query, valueArgs...)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to bulk insert sets: %w", err)
+		return fmt.Errorf("failed to bulk insert sets: %w", err)
 	}
-
-	err = tx.Commit()
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to commit tx: %w", err)
-	}
-	return id, nil
+	return nil
 }

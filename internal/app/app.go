@@ -43,7 +43,7 @@ func Run(ctx context.Context) error {
 	router := transport.NewRouter(transport.NewAuthHandler(authService), transport.NewAthleteHandler(athlService), transport.NewExerciseHandler(exercService), transport.NewWorkoutHandler(workoutService))
 
 	srv := &http.Server{
-		Addr:         ":8080",
+		Addr:         ":" + cfg.Port,
 		Handler:      router,
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
@@ -51,7 +51,7 @@ func Run(ctx context.Context) error {
 
 	serverError := make(chan error, 1)
 	go func() {
-		log.Println("Server is running on :8080")
+		log.Printf("Server is running on: %s \n", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			serverError <- fmt.Errorf("listen: %s\n", err)
 		}

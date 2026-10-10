@@ -3,10 +3,12 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"time"
 
+	"github.com/Dizao9/Fitness-Journal/internal/domain"
 	"github.com/Dizao9/Fitness-Journal/internal/service"
 	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
 	"github.com/google/uuid"
@@ -62,8 +64,27 @@ func (h *WorkoutHandler) CreateTraining(w http.ResponseWriter, r *http.Request) 
 	defer cancel()
 	id, err := h.Service.CreateWorkout(ctx, workoutInput)
 	if err != nil {
-		log.Printf("[CREATE_WORKOUT] internal server error: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		if errors.Is(err, domain.ErrInvalidGradeOfTraining) {
+			http.Error(w, "invalid grade of training, should be from 1 to 10", http.StatusBadRequest)
+			return
+		}
+
+		if errors.Is(err, domain.DateOfTrainingInFuture) {
+			http.Error(w, "date of training shouldn't be in the future", http.StatusBadRequest)
+			return
+		}
+
+		if errors.Is(err, domain.ErrNoSetsInFinishedWorkout) {
+			http.Error(w, "finished workout must be with sets", http.StatusBadRequest)
+			return
+		}
+
+		if errors.Is(err, domain.ErrNotEnoughPermission) {
+			http.Error(w, "not enough permission for this", http.StatusForbidden)
+			return
+		}
+		http.Error(w, "invalid server error", http.StatusInternalServerError)
+		log.Printf("invalid server error: %v", err)
 		return
 	}
 

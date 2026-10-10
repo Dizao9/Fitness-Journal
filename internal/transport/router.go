@@ -7,7 +7,7 @@ func NewRouter(auth *AuthHandler, athlete *AthleteHandler, exercise *ExerciseHan
 	//exercise block
 	protected := auth.AuthMiddlware
 	mux.Handle("POST /exercise", protected(http.HandlerFunc(exercise.PostExercise)))
-	mux.Handle("GET /ListExercises", protected(http.HandlerFunc(exercise.GetPageOfExercise)))
+	mux.Handle("GET /exercises", protected(http.HandlerFunc(exercise.GetPageOfExercise)))
 	mux.Handle("GET /exercise/{id}", protected(http.HandlerFunc(exercise.GetExerciseByID)))
 	mux.Handle("DELETE /exercise/{id}", protected(http.HandlerFunc(exercise.DeleteExercise)))
 	mux.Handle("PUT /exercise/{id}", protected(http.HandlerFunc(exercise.UpdateExercise)))

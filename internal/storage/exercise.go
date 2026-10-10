@@ -120,7 +120,7 @@ func (s *ExerciseStorage) UpdateExercise(exercise domain.Exercise) error {
 		return err
 	}
 	if countAff == 0 {
-		return domain.ErrExerciseNotFound //need to change
+		return domain.ErrExerciseNotFound
 	}
 	return nil
 }

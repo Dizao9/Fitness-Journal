@@ -1,7 +1,6 @@
 package service
 
 import (
-	"github.com/Dizao9/Fitness-Journal/internal/config"
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
 	"github.com/google/uuid"
 )
@@ -14,13 +13,11 @@ type AthleteStorage interface {
 
 type AthleteService struct {
 	Store AthleteStorage
-	Conf  *config.Config
 }
 
-func NewAthleteService(Str AthleteStorage, Cnf *config.Config) *AthleteService {
+func NewAthleteService(Str AthleteStorage) *AthleteService {
 	return &AthleteService{
 		Store: Str,
-		Conf:  Cnf,
 	}
 }
 

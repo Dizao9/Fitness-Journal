@@ -14,29 +14,6 @@ import (
 	"github.com/Dizao9/Fitness-Journal/internal/transport"
 )
 
-func NewRouter(handlers *transport.Handlers) *http.ServeMux {
-	mux := http.NewServeMux()
-	//exercise block
-	protected := handlers.Auth.AuthMiddlware
-	mux.Handle("POST /exercise", protected(http.HandlerFunc(handlers.Exercise.PostExercise)))
-	mux.Handle("GET /ListExercises", protected(http.HandlerFunc(handlers.Exercise.GetPageOfExercise)))
-	mux.Handle("GET /exercise/{id}", protected(http.HandlerFunc(handlers.Exercise.GetExerciseByID)))
-	mux.Handle("DELETE /exercise/{id}", protected(http.HandlerFunc(handlers.Exercise.DeleteExercise)))
-	mux.Handle("PUT /exercise/{id}", protected(http.HandlerFunc(handlers.Exercise.UpdateExercise)))
-	//auth block
-	mux.HandleFunc("POST /auth/register", handlers.Auth.RegisterUser)
-	mux.HandleFunc("POST /auth/login", handlers.Auth.Login)
-	mux.HandleFunc("POST /auth/refresh", handlers.Auth.Refresh)
-	mux.HandleFunc("POST /auth/logout", handlers.Auth.LogOut)
-	//user block
-	mux.Handle("GET /athlete/profile", protected(http.HandlerFunc(handlers.Athlete.GetProfile)))
-	mux.Handle("PUT /athlete/profile", protected(http.HandlerFunc(handlers.Athlete.UpdateUserProfile)))
-	mux.Handle("DELETE /athlete/profile", protected(http.HandlerFunc(handlers.Athlete.DeleteUser)))
-	//workout block
-	mux.Handle("POST /workout", protected(http.HandlerFunc(handlers.Workout.CreateTraining)))
-	return mux
-}
-
 const cost = 12 //следует вынести в .env
 
 func Run(ctx context.Context) error {
@@ -48,19 +25,26 @@ func Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed connect to db: %w", err)
 	}
+	defer db.Close()
 
-	tm := auth.NewJWTManager(cfg.AccessJWTSecret, cfg.RefreshJWTSecret)
+	jwtManager := auth.NewJWTManager(cfg.AccessJWTSecret, cfg.RefreshJWTSecret)
 	ph := auth.NewBcryptPasswordHasher(cost)
 	txManager := storage.NewTransactionManager(db)
 
-	storage := storage.NewStorage(db)
-	services := service.NewServices(storage, cfg, tm, ph, txManager)
-	handlers := transport.NewHandlers(services)
+	athlStorage := storage.NewAthleteStorage(db)
+	exercStorage := storage.NewExerciseStorage(db)
+	workoutStorage := storage.NewWorkoutStorage(db)
 
-	mux := NewRouter(handlers)
+	authService := service.NewAuthService(athlStorage, jwtManager, ph)
+	athlService := service.NewAthleteService(athlStorage)
+	exercService := service.NewExerciseService(exercStorage)
+	workoutService := service.NewWorkoutService(workoutStorage, exercStorage, txManager)
+
+	router := transport.NewRouter(transport.NewAuthHandler(authService), transport.NewAthleteHandler(athlService), transport.NewExerciseHandler(exercService), transport.NewWorkoutHandler(workoutService))
+
 	srv := &http.Server{
 		Addr:         ":8080",
-		Handler:      mux,
+		Handler:      router,
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
@@ -73,7 +57,7 @@ func Run(ctx context.Context) error {
 		}
 	}()
 	select {
-	case <-serverError:
+	case err := <-serverError:
 		return err
 	case <-ctx.Done():
 		log.Println("Shutting down..")

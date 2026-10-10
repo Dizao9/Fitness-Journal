@@ -16,6 +16,10 @@ type WorkoutStorage interface {
 type ExerciseWorkStorage interface {
 	GetExerciseByIDs(ctx context.Context, userID uuid.UUID, IDs []int) ([]domain.Exercise, error)
 }
+
+type TxManager interface {
+	Do(ctx context.Context, execFn func(ctx context.Context) error) error
+}
 type WorkoutService struct {
 	WorkoutStore  WorkoutStorage
 	ExerciseStore ExerciseWorkStorage
@@ -51,7 +55,7 @@ func (s *WorkoutService) CreateWorkout(ctx context.Context, input CreateWorkoutI
 		Status:          input.Status,
 	}
 
-	expectedExercises := len(workoutDomain.Sets) / 3
+	expectedExercises := len(input.Sets) / 3
 	if expectedExercises < 8 {
 		expectedExercises = 8
 	}

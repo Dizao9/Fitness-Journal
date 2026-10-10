@@ -109,9 +109,14 @@ func (s *ExerciseService) UpdateExercise(userID uuid.UUID, exerciseID int, exerc
 	if exerciseUPD.MuscleGroup != nil {
 		exercise.MuscleGroup = *exerciseUPD.MuscleGroup
 	}
-	if exerciseUPD.Description != nil {
-		exercise.Description = *&exerciseUPD.Description
+
+	if exercise.AthleteID == nil {
+		return domain.ErrNotEnoughPermission
 	}
 
-	return s.Store.UpdateExercise(exercise) //ВОПРОС: А стоит ли так делать? мне кажется стоит ловить ошибку тут
+	if exerciseUPD.Description != nil {
+		exercise.Description = exerciseUPD.Description
+	}
+
+	return s.Store.UpdateExercise(exercise)
 }

@@ -57,7 +57,7 @@ func (s *ExerciseStorage) GetExercises(ctx context.Context, userID uuid.UUID, fi
 
 	query += " ORDER BY name ASC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
 	args = append(args, limit, offset)
-	rows, err := s.DB.Query(query, args...)
+	rows, err := s.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

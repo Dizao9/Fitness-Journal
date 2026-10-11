@@ -56,7 +56,7 @@ func (h *WorkoutHandler) CreateTraining(w http.ResponseWriter, r *http.Request) 
 		TotalTime:       workoutCreateReq.TotalTime,
 		GradeOfTraining: workoutCreateReq.GradeOfTraining,
 		DateOfTraining:  workoutCreateReq.DateOfTraining,
-		Status:          workoutCreateReq.Status,
+		Status:          domain.WorkoutStatus(workoutCreateReq.Status),
 		Sets:            serviceSets,
 	}
 
@@ -81,6 +81,11 @@ func (h *WorkoutHandler) CreateTraining(w http.ResponseWriter, r *http.Request) 
 
 		if errors.Is(err, domain.ErrNotEnoughPermission) {
 			http.Error(w, "not enough permission for this", http.StatusForbidden)
+			return
+		}
+
+		if errors.Is(err, domain.ErrInvalidWorkoutStatus) {
+			http.Error(w, "invalid workout status", http.StatusBadRequest)
 			return
 		}
 		http.Error(w, "invalid server error", http.StatusInternalServerError)

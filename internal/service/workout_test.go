@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
 	"github.com/google/uuid"
@@ -117,5 +119,50 @@ func TestWorkoutService_CreateWorkout_GradeBoundary(t *testing.T) {
 			}
 		}
 
+	}
+}
+
+func intPtr(v int) *int {
+	return &v
+}
+
+func TestWorkoutService_CreateWorkout_FutureDate(t *testing.T) {
+	workServ := NewWorkoutService(&mockWorkoutStorage{}, &mockExerciseWorkStorage{}, &mockTxManager{})
+	input := CreateWorkoutInput{AthleteID: uuid.New(), TotalTime: nil, DateOfTraining: time.Now().Add(100 * time.Second), GradeOfTraining: nil, Status: domain.WorkoutStatusFinished,
+		Sets: []CreateSetInput{{
+			ExerciseID: 1,
+			Weight:     110.0,
+			SetOrder:   intPtr(1),
+			Reps:       8,
+			Rpe:        nil,
+		}, {
+			ExerciseID: 1,
+			Weight:     120.0,
+			SetOrder:   intPtr(2),
+			Reps:       5,
+			Rpe:        nil,
+		}}}
+
+	_, err := workServ.CreateWorkout(context.Background(), input)
+	if err == nil {
+		t.Fatalf("ожидалась ошибка о времени в будущем. Не получено ошибки")
+	}
+	if !errors.Is(err, domain.DateOfTrainingInFuture) {
+		t.Fatalf("получена неожиданная ошибка: %v", err)
+	}
+}
+
+func TestWorkoutService_CreateWorkout_NothingInSets(t *testing.T) {
+	workServ := NewWorkoutService(&mockWorkoutStorage{}, &mockExerciseWorkStorage{}, &mockTxManager{})
+	input := CreateWorkoutInput{AthleteID: uuid.New(), TotalTime: nil, DateOfTraining: time.Now(), GradeOfTraining: nil, Status: domain.WorkoutStatusFinished,
+		Sets: nil,
+	}
+
+	_, err := workServ.CreateWorkout(context.Background(), input)
+	if err == nil {
+		t.Fatalf("ожидалась ошибка ErrNoSetsInFinishedWorkout")
+	}
+	if !errors.Is(err, domain.ErrNoSetsInFinishedWorkout) {
+		t.Fatalf("получена неожиданная ошибка: %v", err)
 	}
 }

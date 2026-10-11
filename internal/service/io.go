@@ -3,6 +3,7 @@ package service
 import (
 	"time"
 
+	"github.com/Dizao9/Fitness-Journal/internal/domain"
 	"github.com/google/uuid"
 )
 
@@ -70,7 +71,7 @@ type CreateWorkoutInput struct {
 	TotalTime       *int
 	GradeOfTraining *int
 	DateOfTraining  time.Time
-	Status          string
+	Status          domain.WorkoutStatus
 	Sets            []CreateSetInput
 }
 

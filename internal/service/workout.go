@@ -43,6 +43,10 @@ func (s *WorkoutService) CreateWorkout(ctx context.Context, input CreateWorkoutI
 		return uuid.Nil, domain.DateOfTrainingInFuture
 	}
 
+	if !input.Status.IsStatusValid() {
+		return uuid.Nil, domain.ErrInvalidWorkoutStatus
+	}
+
 	if input.Status == domain.WorkoutStatusFinished && len(input.Sets) == 0 {
 		return uuid.Nil, domain.ErrNoSetsInFinishedWorkout
 	}

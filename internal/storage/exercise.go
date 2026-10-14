@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"strconv"
 
@@ -56,17 +57,20 @@ func (s *ExerciseStorage) GetExercises(ctx context.Context, userID uuid.UUID, fi
 
 	query += " ORDER BY name ASC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
 	args = append(args, limit, offset)
-	rows, err := s.DB.Query(query, args...)
+	rows, err := s.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	exercises := make([]domain.Exercise, 0, 50)
 	for rows.Next() {
 		var exercise domain.Exercise
 		err = rows.Scan(&exercise.ID, &exercise.Name, &exercise.MuscleGroup, &exercise.Description, &exercise.AthleteID)
 		if err != nil {
 			log.Printf("[GET_EXERCISES_STORAGE] error: %v", err)
+			return nil, fmt.Errorf("failed to scan exercise row: %w", err)
 		}
 
 		exercises = append(exercises, exercise)
@@ -118,7 +122,34 @@ func (s *ExerciseStorage) UpdateExercise(exercise domain.Exercise) error {
 		return err
 	}
 	if countAff == 0 {
-		return domain.ErrExerciseNotFound //need to change
+		return domain.ErrExerciseNotFound
 	}
 	return nil
+}
+
+func (s *ExerciseStorage) GetExerciseByIDs(ctx context.Context, userID uuid.UUID, exerciseIDs []int) ([]domain.Exercise, error) {
+	engine := getQueryEngine(ctx, s.DB)
+
+	query := `SELECT id, name, muscle_group, description, athlete_id FROM exercises
+	WHERE id = ANY($1) AND (athlete_id IS NULL OR athlete_id = $2)`
+
+	rows, err := engine.QueryContext(ctx, query, exerciseIDs, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+	exercises := make([]domain.Exercise, 0, len(exerciseIDs))
+	for rows.Next() {
+		var exercise domain.Exercise
+		if err = rows.Scan(&exercise.ID, &exercise.Name, &exercise.MuscleGroup, &exercise.Description, &exercise.AthleteID); err != nil {
+			return nil, fmt.Errorf("failed to scan: %w", err)
+		}
+		exercises = append(exercises, exercise)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+	return exercises, nil
 }

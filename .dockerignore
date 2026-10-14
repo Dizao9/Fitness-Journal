@@ -1,0 +1,7 @@
+.git
+.env
+*.log
+bin/
+vendor
+.agents
+.antigravitycli

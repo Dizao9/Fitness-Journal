@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -10,13 +12,13 @@ import (
 type Config struct {
 	Port             string
 	DSN              string
-	JWTSecret        string
+	AccessJWTSecret  string
 	RefreshJWTSecret string
 }
 
 func LoadConfig() (*Config, error) {
 	if err := godotenv.Load(); err != nil {
-		log.Printf("failed to load config file")
+		log.Printf("config file is not loaded")
 	}
 
 	port := os.Getenv("PORT")
@@ -24,26 +26,32 @@ func LoadConfig() (*Config, error) {
 	jwtSecret := os.Getenv("JWT_SECRET")
 	refreshJWTSecret := os.Getenv("REFRESH_JWT_SECRET")
 
+	var missing []string
+
 	if port == "" {
-		log.Fatalf("please, set PORT env")
+		missing = append(missing, "PORT")
 	}
 
 	if dsn == "" {
-		log.Fatalf("please, set DSN env")
+		missing = append(missing, "DSN")
 	}
 
 	if jwtSecret == "" {
-		log.Fatalf("please, set JWT_SECRET env")
+		missing = append(missing, "JWT_SECRET")
 	}
 
 	if refreshJWTSecret == "" {
-		log.Fatalf("please, set REFRESH_JWT_SECRET")
+		missing = append(missing, "REFRESH_JWT_SECRET")
+	}
+
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
 	}
 
 	return &Config{
 		Port:             port,
 		DSN:              dsn,
-		JWTSecret:        jwtSecret,
+		AccessJWTSecret:  jwtSecret,
 		RefreshJWTSecret: refreshJWTSecret,
 	}, nil
 }

@@ -14,7 +14,7 @@ func main() {
 	defer stop()
 
 	if err := app.Run(ctx); err != nil {
-		log.Fatalf("Apllication failed: %v", err)
+		log.Fatalf("Application failed: %v", err)
 	}
 
 	log.Println("Application stopped safely")

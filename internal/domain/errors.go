@@ -10,8 +10,10 @@ var ErrUserNotFound = errors.New("user not found")
 var ErrInvalidCredentials = errors.New("invalid credentials")
 
 var ErrExerciseNotFound = errors.New("exercise not found")
-var ErrNotEnoughPermission = errors.New("exercise not found")
+var ErrNotEnoughPermission = errors.New("not enough permission")
 
 // workout
-var ErrInvalidGrade = errors.New("invalid grade of training")
+var ErrInvalidGradeOfTraining = errors.New("invalid grade of training")
 var ErrNoSetsInFinishedWorkout = errors.New("finished workout must have at least one set")
+var ErrDateOfTrainingInFuture = errors.New("date of training must be in the past")
+var ErrInvalidWorkoutStatus = errors.New("invalid status for training")

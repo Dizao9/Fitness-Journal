@@ -1,33 +1,26 @@
 package service
 
 import (
-	"fmt"
 	"log"
 	"time"
 
-	"github.com/Dizao9/Fitness-Journal/internal/config"
 	"github.com/Dizao9/Fitness-Journal/internal/domain"
-	"github.com/Dizao9/Fitness-Journal/internal/transport/dto"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type TokenPair struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken  string
+	RefreshToken string
+}
+type AccessTokenClaims struct {
+	UserID uuid.UUID
+	Role   string
+	Email  string
 }
 
-type RefreshClaims struct {
-	UserID uuid.UUID `json:"user_id"`
-	JTI    uuid.UUID `json:"jti"`
-	jwt.RegisteredClaims
-}
-type CustomClaims struct {
-	UserID uuid.UUID `json:"user_id"`
-	Role   string    `json:"role"`
-	Email  string    `json:"email"`
-	jwt.RegisteredClaims
+type RefreshTokenClaims struct {
+	UserID uuid.UUID
+	JTI    uuid.UUID
 }
 
 type AuthStorage interface {
@@ -39,23 +32,38 @@ type AuthStorage interface {
 	DeleteRefreshToken(jti uuid.UUID) (bool, error)
 }
 
-type AuthService struct {
-	Store AuthStorage
-	Conf  *config.Config
+type PasswordHasher interface {
+	Hash(password string) (string, error)
+	ComparePassword(hash, password string) error
 }
 
-func NewAuthService(s AuthStorage, c *config.Config) *AuthService {
+type TokenManager interface {
+	GenerateAccessToken(userID uuid.UUID, role, email string, ttl time.Duration) (string, error)
+	GenerateRefreshToken(userID uuid.UUID, jti uuid.UUID, ttl time.Duration) (string, error)
+
+	ParseAccessToken(tokenStr string) (*AccessTokenClaims, error)
+	ParseRefreshToken(tokenStr string) (*RefreshTokenClaims, error)
+}
+
+type AuthService struct {
+	Store          AuthStorage
+	TokenManager   TokenManager
+	PasswordHasher PasswordHasher
+}
+
+func NewAuthService(s AuthStorage, tm TokenManager, ph PasswordHasher) *AuthService {
 	if s == nil {
 		log.Fatalf("[AUTH] Storage is required")
 	}
 	return &AuthService{
-		Store: s,
-		Conf:  c,
+		Store:          s,
+		TokenManager:   tm,
+		PasswordHasher: ph,
 	}
 }
 
-func (a *AuthService) Register(req dto.RegisterUser) (uuid.UUID, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(req.Password), 12)
+func (a *AuthService) Register(req RegisterInput) (uuid.UUID, error) {
+	bytes, err := a.PasswordHasher.Hash(req.Password)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -73,31 +81,16 @@ func (a *AuthService) Register(req dto.RegisterUser) (uuid.UUID, error) {
 }
 
 func (a *AuthService) generateToken(id uuid.UUID, role, email string) (TokenPair, error) {
-	accessClaims := CustomClaims{
-		UserID: id,
-		Role:   role,
-		Email:  email,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * time.Minute)),
-		},
-	}
 
-	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims).SignedString([]byte(a.Conf.JWTSecret))
+	accessToken, err := a.TokenManager.GenerateAccessToken(id, role, email, 30*time.Minute)
 	if err != nil {
 		return TokenPair{}, err
 	}
 
 	expiresDate := time.Now().Add(30 * 24 * time.Hour)
 	jti := uuid.New()
-	refreshClaims := RefreshClaims{
-		UserID: id,
-		JTI:    jti,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expiresDate),
-		},
-	}
 
-	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString([]byte(a.Conf.RefreshJWTSecret))
+	refreshToken, err := a.TokenManager.GenerateRefreshToken(id, jti, 30*24*time.Hour)
 	if err != nil {
 		return TokenPair{}, err
 	}
@@ -113,8 +106,8 @@ func (a *AuthService) generateToken(id uuid.UUID, role, email string) (TokenPair
 	}, nil
 }
 
-func (a *AuthService) Login(email string, password string) (TokenPair, error) {
-	user, err := a.Store.GetByEmail(email)
+func (a *AuthService) Login(loginData LoginInput) (TokenPair, error) {
+	user, err := a.Store.GetByEmail(loginData.Email)
 	if err != nil {
 		if err == domain.ErrUserNotFound {
 			return TokenPair{}, domain.ErrInvalidCredentials
@@ -123,7 +116,7 @@ func (a *AuthService) Login(email string, password string) (TokenPair, error) {
 		return TokenPair{}, err
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
+	err = a.PasswordHasher.ComparePassword(user.PasswordHash, loginData.Password)
 	if err != nil {
 		return TokenPair{}, domain.ErrInvalidCredentials
 	}
@@ -131,41 +124,8 @@ func (a *AuthService) Login(email string, password string) (TokenPair, error) {
 	return a.generateToken(user.ID, user.GetRole(), user.Email)
 }
 
-func (a *AuthService) ParseAccessToken(tokenStr string) (*CustomClaims, error) {
-	claims := &CustomClaims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("%w: unexpected signing method", domain.ErrInvalidCredentials)
-		}
-		return []byte(a.Conf.JWTSecret), nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if !token.Valid {
-		return nil, domain.ErrInvalidCredentials
-	}
-	return claims, nil
-}
-
-func (a *AuthService) ParseRefreshToken(tokenStr string) (*RefreshClaims, error) {
-	claims := &RefreshClaims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("%w: unexpected signing method", domain.ErrInvalidCredentials)
-		}
-		return []byte(a.Conf.RefreshJWTSecret), nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if !token.Valid {
-		return nil, domain.ErrInvalidCredentials
-	}
-	return claims, err
+func (a *AuthService) ParseAccessToken(tokenStr string) (*AccessTokenClaims, error) {
+	return a.TokenManager.ParseAccessToken(tokenStr)
 }
 
 func (a *AuthService) ExistsByID(id uuid.UUID) (bool, error) {
@@ -173,17 +133,8 @@ func (a *AuthService) ExistsByID(id uuid.UUID) (bool, error) {
 }
 
 func (a *AuthService) Refresh(refreshToken string) (TokenPair, error) {
-	claims := &RefreshClaims{}
-	token, err := jwt.ParseWithClaims(refreshToken, claims, func(token *jwt.Token) (any, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, domain.ErrInvalidCredentials
-		}
-		return ([]byte(a.Conf.RefreshJWTSecret)), nil
-	})
-	if err != nil || !token.Valid {
-		if err != nil {
-			log.Printf("[REFRESH SERVICE] error: %v", err)
-		}
+	claims, err := a.TokenManager.ParseRefreshToken(refreshToken)
+	if err != nil {
 		return TokenPair{}, domain.ErrInvalidCredentials
 	}
 
@@ -204,6 +155,12 @@ func (a *AuthService) Refresh(refreshToken string) (TokenPair, error) {
 	return a.generateToken(user.ID, user.GetRole(), user.Email)
 }
 
-func (a *AuthService) LogOut(jti uuid.UUID) (bool, error) {
-	return a.Store.DeleteRefreshToken(jti)
+func (a *AuthService) LogOut(refreshToken string) error {
+	claims, err := a.TokenManager.ParseRefreshToken(refreshToken)
+	if err != nil {
+		return domain.ErrInvalidCredentials
+	}
+
+	_, err = a.Store.DeleteRefreshToken(claims.JTI)
+	return err
 }

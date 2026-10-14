@@ -1,9 +1,11 @@
 # Fitness Journal API
 
+[![Go Version](https://img.shields.io/badge/Go-1.24-00ADD8?style=flat&logo=go)](https://golang.org)
+[![CI](https://github.com/Dizao9/Fitness-Journal/actions/workflows/ci.yml/badge.svg)](https://github.com/Dizao9/Fitness-Journal/actions/workflows/ci.yml)
+
 REST API для ведения журнала тренировок с поддержкой персонализированных упражнений, учётом подходов, весов и RPE.
 
 ## Стек
-
 - **Go 1.24** (чистый stdlib, минимум зависимостей)
 - **PostgreSQL 15** (реляционная БД, транзакции)
 - **JWT** (access + refresh tokens, HttpOnly cookies)
@@ -21,8 +23,9 @@ internal/
 ├── config/       — конфигурация (.env)
 ├── domain/       — доменные модели и ошибки
 ├── service/      — бизнес-логика
-├── storage/      — работа с БД (транзакции, bulk insert)
-└── transport/    — HTTP handlers, DTO, middleware
+├── storage/      — работа с БД
+├── transport/    — HTTP handlers, DTO, middleware
+└── infrastructure/ - bcrypt, jwtManager
 migrations/       — миграции (goose)
 ```
 
@@ -53,7 +56,7 @@ migrations/       — миграции (goose)
 ### 1. Клонировать и настроить
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Dizao9/Fitness-Journal
 cd fitness
 cp .env.example .env
 ```
@@ -62,30 +65,41 @@ cp .env.example .env
 
 ```env
 DSN=postgres://postgres:postgres@localhost:5432/fitness_journal?sslmode=disable
-PORT=8080
+PORT=8081
 JWT_SECRET=your-secret-key-here
 REFRESH_JWT_SECRET=your-refresh-secret-here
 ```
 
-### 2. Запустить PostgreSQL
+### 2. Запуск приложения
+
+Выберите один из двух вариантов:
+
+#### Вариант А: Docker Compose (Все в одном, рекомендуемый)
+
+Автоматическая сборка приложения и запуск PostgreSQL с проверкой healthcheck:
 
 ```bash
-docker compose up -d
+docker compose up --build -d
 ```
+> Приложение будет доступно на порту `8081` (или согласно маппингу портов в `docker-compose.yaml`).
 
-### 3. Применить миграции
+#### Вариант Б: Локальный запуск (для разработки)
 
-```bash
-goose -dir migrations postgres "postgres://postgres:postgres@localhost:5432/fitness_journal?sslmode=disable" up
-```
+1. Запустите контейнер с базой данных:
+   ```bash
+   docker compose up -d db
+   ```
 
-### 4. Запустить сервер
+2. Примените миграции базы данных:
+   ```bash
+   goose -dir migrations postgres "postgres://postgres:postgres@localhost:5432/fitness_journal?sslmode=disable" up
+   ```
 
-```bash
-go run cmd/app/main.go
-```
-
-Сервер запустится на `:8080`
+3. Запустите сервис:
+   ```bash
+   go run cmd/app/main.go
+   ```
+   Сервер запустится на порту, указанном в `.env` 
 
 ## API Endpoints
 
@@ -111,7 +125,7 @@ go run cmd/app/main.go
 | Метод | Путь | Описание | Auth |
 |-------|------|----------|------|
 | POST | `/exercise` | Создать упражнение | ✅ |
-| GET | `/ListExercises?limit=10&page=1&filter=` | Список упражнений | ✅ |
+| GET | `/exercises?limit=10&page=1&filter=` | Список упражнений | ✅ |
 | GET | `/exercise/{id}` | Упражнение по ID | ✅ |
 | PUT | `/exercise/{id}` | Обновить упражнение | ✅ |
 | DELETE | `/exercise/{id}` | Удалить упражнение | ✅ |
@@ -127,7 +141,7 @@ go run cmd/app/main.go
 ### Регистрация
 
 ```bash
-curl -X POST http://localhost:8080/auth/register \
+curl -X POST http://localhost:8081/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"john_doe","email":"john@example.com","password":"secure123","name":"John","age":25}'
 ```
@@ -135,7 +149,7 @@ curl -X POST http://localhost:8080/auth/register \
 ### Создание упражнения
 
 ```bash
-curl -X POST http://localhost:8080/exercise \
+curl -X POST http://localhost:8081/exercise \
   -H "Content-Type: application/json" \
   -b "access_token=<token>" \
   -d '{"name":"Bench Press","muscle_group":"Chest","description":"Classic exercise"}'
@@ -144,7 +158,7 @@ curl -X POST http://localhost:8080/exercise \
 ### Создание тренировки
 
 ```bash
-curl -X POST http://localhost:8080/workout \
+curl -X POST http://localhost:8081/workout \
   -H "Content-Type: application/json" \
   -b "access_token=<token>" \
   -d '{
@@ -162,12 +176,21 @@ curl -X POST http://localhost:8080/workout \
 
 ## Тесты
 
-```bash
-go test ./...           # все тесты
-go test ./... -v        # подробный вывод
-go test ./... -cover    # покрытие
-```
+Проект покрыт юнит-тестами с моками зависимостей и проверяется линтером:
 
+```bash
+# Запуск всех тестов
+go test ./...
+
+# Запуск тестов с детектором состояния гонки (как в CI)
+go test -v -race ./...
+
+# Проверка покрытия кода тестами
+go test -cover ./...
+
+# Запуск статического анализатора
+golangci-lint run --no-config ./... 
+```
 ## Безопасность
 
 - Пароли хешируются через **bcrypt** (cost factor 12)

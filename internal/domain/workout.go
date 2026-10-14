@@ -6,8 +6,14 @@ import (
 	"github.com/google/uuid"
 )
 
-const WorkoutStatusInProgress string = "in_progress"
-const WorkoutStatusFinished string = "finished"
+type WorkoutStatus string
+
+const WorkoutStatusInProgress WorkoutStatus = "in_progress"
+const WorkoutStatusFinished WorkoutStatus = "finished"
+
+func (s WorkoutStatus) IsStatusValid() bool {
+	return s == WorkoutStatusInProgress || s == WorkoutStatusFinished
+}
 
 type Workout struct {
 	ID              uuid.UUID
@@ -15,7 +21,7 @@ type Workout struct {
 	GradeOfTraining *int
 	DateOfTraining  time.Time
 	AthleteID       uuid.UUID
-	Status          string
+	Status          WorkoutStatus
 
 	Sets []Set
 }

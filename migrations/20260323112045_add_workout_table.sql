@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-ALTER TABLE workouts ADD COLUMN status TEXT DEFAULT 'completed';
+ALTER TABLE workouts ADD COLUMN status TEXT DEFAULT 'finished';
 -- +goose StatementEnd
 
 -- +goose Down

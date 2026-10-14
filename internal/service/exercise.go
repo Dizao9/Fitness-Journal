@@ -90,7 +90,7 @@ func (s *ExerciseService) DeleteExerciseByID(userID uuid.UUID, exerciseID int) e
 		return err
 	}
 
-	if exercise.AthleteID == nil {
+	if exercise.AthleteID == nil || *exercise.AthleteID != userID {
 		return domain.ErrNotEnoughPermission
 	}
 

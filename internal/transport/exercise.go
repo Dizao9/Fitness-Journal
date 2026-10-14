@@ -236,9 +236,9 @@ func (h *ExerciseHandler) UpdateExercise(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
 	if err := json.NewEncoder(w).Encode(map[string]string{"message": "ok"}); err != nil { //Как будто бы можно при UPDATE везде возвращать обновлённую структуру
 		log.Printf("[PUT_EXERCISE] encoder is failed: %v", err)
 	}

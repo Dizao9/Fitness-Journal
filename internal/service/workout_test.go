@@ -166,3 +166,125 @@ func TestWorkoutService_CreateWorkout_NothingInSets(t *testing.T) {
 		t.Fatalf("получена неожиданная ошибка: %v", err)
 	}
 }
+
+func TestWorkoutService_CreateWorkout_ExercicesAndSets(t *testing.T) {
+	mockExercise := &mockExerciseWorkStorage{
+		getExerciseByIDsFunc: func(ctx context.Context, userID uuid.UUID, IDs []int) ([]domain.Exercise, error) {
+			return []domain.Exercise{
+				{
+					ID:          IDs[0],
+					Name:        "Bench_press",
+					MuscleGroup: "Chest",
+					AthleteID:   &userID,
+				}, {
+					ID:          IDs[1],
+					Name:        "Squat",
+					MuscleGroup: "Legs",
+					AthleteID:   &userID,
+				},
+			}, nil
+		},
+	}
+
+	expectedWorkoutID := uuid.New()
+
+	bulkInserted := false
+	mockWorkoutStorage := &mockWorkoutStorage{
+		insertWorkoutFunc: func(ctx context.Context, workout domain.Workout) (uuid.UUID, error) {
+			return expectedWorkoutID, nil
+		},
+		insertSetsBulkFunc: func(ctx context.Context, workoutID uuid.UUID, sets []domain.Set) error {
+			if workoutID != expectedWorkoutID {
+				t.Errorf("ожидался WorkoutID %d, получен %d", expectedWorkoutID, workoutID)
+			}
+
+			if len(sets) != 3 {
+				t.Errorf("ожидалось 3 подхода, получено %d,", len(sets))
+			}
+			bulkInserted = true
+			return nil
+		},
+	}
+
+	workServ := NewWorkoutService(mockWorkoutStorage, mockExercise, &mockTxManager{})
+
+	input := CreateWorkoutInput{
+		AthleteID:      uuid.New(),
+		DateOfTraining: time.Now(),
+		Status:         domain.WorkoutStatusFinished,
+		Sets: []CreateSetInput{
+			{
+				ExerciseID: 1,
+				Weight:     110,
+				Reps:       5,
+				Rpe:        intPtr(5),
+			},
+			{
+				ExerciseID: 1,
+				Weight:     110,
+				Reps:       4,
+				Rpe:        intPtr(6),
+			},
+			{
+				ExerciseID: 2,
+				Weight:     130,
+				Reps:       6,
+				Rpe:        intPtr(9),
+			},
+		},
+	}
+
+	id, err := workServ.CreateWorkout(context.Background(), input)
+	if err != nil {
+		t.Errorf("ошибка не ожидалась, получена %v", err)
+	}
+
+	if id != expectedWorkoutID {
+		t.Errorf("айди не совпали. Ожидался %s, получен: %s", expectedWorkoutID, id)
+	}
+
+	if !bulkInserted {
+		t.Errorf("bulk insert не был выполнен")
+	}
+}
+
+func TestWorkoutService_CreateWorkout_SomeonesElseExercise(t *testing.T) {
+	exercStore := &mockExerciseWorkStorage{
+		getExerciseByIDsFunc: func(ctx context.Context, userID uuid.UUID, IDs []int) ([]domain.Exercise, error) {
+			return []domain.Exercise{}, nil
+		},
+	}
+
+	isCalled := false
+
+	workStore := &mockWorkoutStorage{
+		insertWorkoutFunc: func(ctx context.Context, workout domain.Workout) (uuid.UUID, error) {
+			isCalled = true
+			return uuid.Nil, nil
+		},
+	}
+
+	mockWorkoutService := NewWorkoutService(workStore, exercStore, &mockTxManager{})
+	input := CreateWorkoutInput{
+		AthleteID:      uuid.New(),
+		DateOfTraining: time.Now(),
+		Status:         domain.WorkoutStatusFinished,
+		Sets: []CreateSetInput{
+			{
+				ExerciseID: 1,
+				Weight:     110,
+				Reps:       5,
+				Rpe:        intPtr(5),
+			},
+		},
+	}
+
+	_, err := mockWorkoutService.CreateWorkout(context.Background(), input)
+	if !errors.Is(err, domain.ErrNotEnoughPermission) {
+		t.Errorf("Ожидалась ошибка: %v, получена :%v", domain.ErrNotEnoughPermission, err)
+	}
+
+	if isCalled {
+		t.Errorf("вызов inserWorkout не должен был произойти, но произошёл")
+	}
+}

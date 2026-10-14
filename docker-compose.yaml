@@ -16,6 +16,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+  migrator:
+    build: .
+    restart: "no"
+    command: ["/app/goose", "-dir", "/app/migrations", "postgres", "postgres://postgres:postgres@db:5432/fitness_journal?sslmode=disable", "up"]
+    depends_on:
+      db:
+        condition: service_healthy
   app:
     build:
       context: .
@@ -31,6 +38,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
 volumes:
   pgdata:
   

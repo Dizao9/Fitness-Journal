@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     name: Build & Tests
-    runs_on: ubuntu-latest
+    runs-on: ubuntu-latest
     
     steps:
       - name: Checkout
@@ -31,7 +31,7 @@ jobs:
         run: go test -v -race ./...
   lint:
     name: Lint
-    runs_on: ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,3 +46,4 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
+          args: --no-config

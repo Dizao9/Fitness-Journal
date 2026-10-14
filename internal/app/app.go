@@ -25,7 +25,12 @@ func Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed connect to db: %w", err)
 	}
-	defer db.Close()
+
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("failed to close database: %v", err)
+		}
+	}()
 
 	jwtManager := auth.NewJWTManager(cfg.AccessJWTSecret, cfg.RefreshJWTSecret)
 	ph := auth.NewBcryptPasswordHasher(cost)
@@ -53,7 +58,7 @@ func Run(ctx context.Context) error {
 	go func() {
 		log.Printf("Server is running on: %s \n", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			serverError <- fmt.Errorf("listen: %s\n", err)
+			serverError <- fmt.Errorf("listen: %s", err)
 		}
 	}()
 	select {
@@ -67,7 +72,7 @@ func Run(ctx context.Context) error {
 	defer cancel()
 
 	if err := srv.Shutdown(shutDownCtx); err != nil {
-		return fmt.Errorf("Shutdown server :%w", err)
+		return fmt.Errorf("shutdown server :%w", err)
 	}
 
 	if err := db.Close(); err != nil {

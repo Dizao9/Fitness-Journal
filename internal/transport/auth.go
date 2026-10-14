@@ -76,10 +76,12 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 	if errs := h.ValidateUser(userReq); len(errs) > 0 {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"status": "error",
 			"errors": errs,
-		})
+		}); err != nil {
+			log.Printf("[AUTH] encode error: %v\n", err)
+		}
 		return
 	}
 

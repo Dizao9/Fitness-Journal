@@ -61,7 +61,9 @@ func (s *ExerciseStorage) GetExercises(ctx context.Context, userID uuid.UUID, fi
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	exercises := make([]domain.Exercise, 0, 50)
 	for rows.Next() {
 		var exercise domain.Exercise
@@ -135,7 +137,9 @@ func (s *ExerciseStorage) GetExerciseByIDs(ctx context.Context, userID uuid.UUID
 	if err != nil {
 		return nil, fmt.Errorf("failed to query: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	exercises := make([]domain.Exercise, 0, len(exerciseIDs))
 	for rows.Next() {
 		var exercise domain.Exercise

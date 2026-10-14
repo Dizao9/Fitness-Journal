@@ -32,7 +32,6 @@ func NewExerciseHandler(s ExerciseService) *ExerciseHandler {
 }
 
 func (h *ExerciseHandler) PostExercise(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
 		log.Print("[CREATE_EXERCISE] false from context")
@@ -71,7 +70,6 @@ func (h *ExerciseHandler) PostExercise(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ExerciseHandler) GetPageOfExercise(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	ctx := r.Context()
 	userID, ok := UserIDFromContext(ctx)
 	if !ok {
@@ -113,7 +111,7 @@ func (h *ExerciseHandler) GetPageOfExercise(w http.ResponseWriter, r *http.Reque
 			IsSystem:    exercise.IsSystem,
 		}
 	}
-	//Решил не добавлять проверку на длину полученных упражнений - если нет, то нет, просто пустая страница будет
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(ListOfExercisesDTO); err != nil {
@@ -122,7 +120,6 @@ func (h *ExerciseHandler) GetPageOfExercise(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *ExerciseHandler) GetExerciseByID(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
 		log.Printf("[GET_EXERCISE] false from context ")
@@ -164,7 +161,6 @@ func (h *ExerciseHandler) GetExerciseByID(w http.ResponseWriter, r *http.Request
 }
 
 func (h *ExerciseHandler) DeleteExercise(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
 		log.Printf("[DELETE_EXERCISE] false from context")
@@ -194,7 +190,6 @@ func (h *ExerciseHandler) DeleteExercise(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *ExerciseHandler) UpdateExercise(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
 		log.Printf("[PUT_EXERCISE] false from context")
@@ -239,7 +234,7 @@ func (h *ExerciseHandler) UpdateExercise(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(w).Encode(map[string]string{"message": "ok"}); err != nil { //Как будто бы можно при UPDATE везде возвращать обновлённую структуру
+	if err := json.NewEncoder(w).Encode(map[string]string{"message": "ok"}); err != nil {
 		log.Printf("[PUT_EXERCISE] encoder is failed: %v", err)
 	}
 }

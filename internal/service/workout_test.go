@@ -147,7 +147,7 @@ func TestWorkoutService_CreateWorkout_FutureDate(t *testing.T) {
 	if err == nil {
 		t.Fatalf("ожидалась ошибка о времени в будущем. Не получено ошибки")
 	}
-	if !errors.Is(err, domain.DateOfTrainingInFuture) {
+	if !errors.Is(err, domain.ErrDateOfTrainingInFuture) {
 		t.Fatalf("получена неожиданная ошибка: %v", err)
 	}
 }

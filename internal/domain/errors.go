@@ -15,5 +15,5 @@ var ErrNotEnoughPermission = errors.New("not enough permission")
 // workout
 var ErrInvalidGradeOfTraining = errors.New("invalid grade of training")
 var ErrNoSetsInFinishedWorkout = errors.New("finished workout must have at least one set")
-var DateOfTrainingInFuture = errors.New("date of training must be in the past")
+var ErrDateOfTrainingInFuture = errors.New("date of training must be in the past")
 var ErrInvalidWorkoutStatus = errors.New("invalid status for training")

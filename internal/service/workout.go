@@ -40,7 +40,7 @@ func (s *WorkoutService) CreateWorkout(ctx context.Context, input CreateWorkoutI
 	}
 
 	if input.DateOfTraining.After(time.Now()) {
-		return uuid.Nil, domain.DateOfTrainingInFuture
+		return uuid.Nil, domain.ErrDateOfTrainingInFuture
 	}
 
 	if !input.Status.IsStatusValid() {

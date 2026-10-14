@@ -36,7 +36,7 @@ func (s *WorkoutStorage) InsertSetsBulk(ctx context.Context, workoutID uuid.UUID
 
 	engine := getQueryEngine(ctx, s.DB)
 
-	const columnsPerRowSets = 6 //workout_id, exercise_id, weight, set_order, reps, rpe
+	const columnsPerRowSets = 6
 
 	valueStrings := make([]string, 0, len(sets))
 	valueArgs := make([]any, 0, len(sets)*columnsPerRowSets)
@@ -46,7 +46,7 @@ func (s *WorkoutStorage) InsertSetsBulk(ctx context.Context, workoutID uuid.UUID
 	for _, set := range sets {
 		sb.WriteString("(")
 		for j := 0; j < columnsPerRowSets; j++ {
-			sb.WriteString(fmt.Sprintf("$%d", plchldrCount+j))
+			fmt.Fprintf(&sb, "$%d", plchldrCount+j)
 			if j < columnsPerRowSets-1 {
 				sb.WriteString(", ")
 			}

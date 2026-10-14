@@ -27,7 +27,6 @@ func NewWorkoutHandler(s WorkoutService) *WorkoutHandler {
 }
 
 func (h *WorkoutHandler) CreateTraining(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
 		log.Printf("[CREATE_TRAINING] false from context")
@@ -69,7 +68,7 @@ func (h *WorkoutHandler) CreateTraining(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		if errors.Is(err, domain.DateOfTrainingInFuture) {
+		if errors.Is(err, domain.ErrDateOfTrainingInFuture) {
 			http.Error(w, "date of training shouldn't be in the future", http.StatusBadRequest)
 			return
 		}

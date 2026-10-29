@@ -68,3 +68,28 @@ func (s *WorkoutStorage) InsertSetsBulk(ctx context.Context, workoutID uuid.UUID
 	}
 	return nil
 }
+
+func (s *WorkoutStorage) GetWorkouts(ctx context.Context, athleteID uuid.UUID, limit, offset int) ([]domain.Workout, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT id, total_time, grade_of_training, date_of_training, athlete_id, status
+	FROM workouts WHERE athlete_id = $1 ORDER BY date_of_training DESC LIMIT $2 OFFSET $3`, athleteID.String(), limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	workouts := make([]domain.Workout, 0, limit)
+	for rows.Next() {
+		workout := domain.Workout{}
+		if err := rows.Scan(&workout.ID, &workout.TotalTime, &workout.GradeOfTraining, &workout.DateOfTraining, &workout.AthleteID, &workout.Status); err != nil {
+			return nil, fmt.Errorf("invalid to scan: %w", err)
+		}
+		workouts = append(workouts, workout)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error after scan: %w", err)
+	}
+
+	return workouts, nil
+}

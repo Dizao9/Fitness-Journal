@@ -49,6 +49,10 @@ func (m *mockWorkoutStorage) InsertSetsBulk(ctx context.Context, workoutID uuid.
 	return nil
 }
 
+func (m *mockWorkoutStorage) GetWorkouts(ctx context.Context, athleteID uuid.UUID, limit, offset int) ([]domain.Workout, error) {
+	return nil, nil
+}
+
 func TestWorkoutService_CreateWorkout_Success(t *testing.T) {
 	expectedID := uuid.New()
 

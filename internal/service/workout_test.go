@@ -13,6 +13,7 @@ import (
 type mockWorkoutStorage struct {
 	insertWorkoutFunc  func(ctx context.Context, workout domain.Workout) (uuid.UUID, error)
 	insertSetsBulkFunc func(ctx context.Context, workoutID uuid.UUID, sets []domain.Set) error
+	getWorkoutsFunc    func(ctx context.Context, athleteID uuid.UUID, limit, offset int) ([]domain.Workout, error)
 }
 
 type mockTxManager struct {
@@ -50,6 +51,10 @@ func (m *mockWorkoutStorage) InsertSetsBulk(ctx context.Context, workoutID uuid.
 }
 
 func (m *mockWorkoutStorage) GetWorkouts(ctx context.Context, athleteID uuid.UUID, limit, offset int) ([]domain.Workout, error) {
+	if m.getWorkoutsFunc != nil {
+		return m.getWorkoutsFunc(ctx, athleteID, limit, offset)
+	}
+
 	return nil, nil
 }
 
@@ -290,5 +295,67 @@ func TestWorkoutService_CreateWorkout_SomeonesElseExercise(t *testing.T) {
 
 	if isCalled {
 		t.Errorf("вызов inserWorkout не должен был произойти, но произошёл")
+	}
+}
+
+func TestWorkoutService_GetWorkouts_EdgeCases(t *testing.T) {
+	tests := []struct {
+		Name           string
+		Limit          int
+		Page           int
+		ExpectedOffSet int
+	}{
+		{
+			Name:           "Limit is over of rage",
+			Limit:          100,
+			Page:           2,
+			ExpectedOffSet: 50,
+		}, {
+			Name:           "Limit is lower of rage",
+			Limit:          -1,
+			Page:           2,
+			ExpectedOffSet: 10,
+		}, {
+			Name:           "Normal",
+			Limit:          35,
+			Page:           2,
+			ExpectedOffSet: 35,
+		}, {
+			Name:           "Incorrect page",
+			Limit:          20,
+			Page:           0,
+			ExpectedOffSet: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+
+			var capturedOffset int
+
+			mockStorage := &mockWorkoutStorage{
+				getWorkoutsFunc: func(ctx context.Context, athleteID uuid.UUID, limit int, offset int) ([]domain.Workout, error) {
+					capturedOffset = offset
+					return nil, nil
+				},
+			}
+
+			service := NewWorkoutService(mockStorage, &mockExerciseWorkStorage{}, &mockTxManager{})
+
+			_, err := service.GetWorkouts(context.Background(), GetWorkoutsInput{
+				AthleteID: uuid.New(),
+				Limit:     tc.Limit,
+				Page:      tc.Page,
+			})
+
+			if err != nil {
+				t.Errorf("вызов не должен был привлечь ошибку: %v", err)
+			}
+
+			if capturedOffset != tc.ExpectedOffSet {
+				t.Errorf("значения ожидаемого смещения и полученного не совпали. Ожидалось: %d. Получено: %d", tc.ExpectedOffSet, capturedOffset)
+			}
+		})
+
 	}
 }

@@ -18,6 +18,7 @@ import (
 type WorkoutService interface {
 	CreateWorkout(ctx context.Context, input service.CreateWorkoutInput) (uuid.UUID, error)
 	GetWorkouts(ctx context.Context, input service.GetWorkoutsInput) ([]domain.Workout, error)
+	GetWorkout(ctx context.Context, input service.GetWorkoutInput) (domain.Workout, error)
 }
 
 type WorkoutHandler struct {
@@ -148,9 +149,66 @@ func (h *WorkoutHandler) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, domain.ErrInvalidWorkoutStatus):
 		http.Error(w, "invalid workout status", http.StatusBadRequest)
 		return
+	case errors.Is(err, domain.ErrWorkoutNotFound):
+		http.Error(w, "workout not found", http.StatusNotFound)
 	default:
 		http.Error(w, "invalid server error", http.StatusInternalServerError)
 		log.Printf("invalid server error: %v", err)
 		return
+	}
+}
+
+func (h *WorkoutHandler) GetWorkout(w http.ResponseWriter, r *http.Request) {
+	workoutIDRaw := r.PathValue("id")
+	workoutID, err := uuid.Parse(workoutIDRaw)
+	if err != nil {
+		http.Error(w, "invalid id format in path, should be uuid", http.StatusBadRequest)
+		return
+	}
+
+	athleteID, ok := UserIDFromContext(r.Context())
+	if !ok {
+		log.Printf("[GET_WORKOUT] false from context")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	workout, err := h.Service.GetWorkout(ctx, service.GetWorkoutInput{
+		AthleteID: athleteID,
+		WorkoutID: workoutID,
+	})
+
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	responseSets := make([]dto.Set, len(workout.Sets))
+	for i, v := range workout.Sets {
+		responseSets[i] = dto.Set{
+			ExerciseID: v.ExerciseID,
+			Weight:     v.Weight,
+			SetOrder:   v.SetOrder,
+			Reps:       v.Reps,
+			Rpe:        v.Rpe,
+		}
+	}
+
+	workoutForResponse := dto.WorkoutExpandedResponse{
+		ID:        workoutID,
+		Date:      workout.DateOfTraining,
+		TotalTime: workout.TotalTime,
+		Grade:     workout.GradeOfTraining,
+		Status:    string(workout.Status),
+		Sets:      responseSets,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(workoutForResponse); err != nil {
+		log.Printf("[GET_WORKOUT] Encoder failed :%v", err)
 	}
 }

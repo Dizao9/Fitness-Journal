@@ -12,6 +12,7 @@ type WorkoutStorage interface {
 	InsertWorkout(ctx context.Context, workout domain.Workout) (uuid.UUID, error)
 	InsertSetsBulk(ctx context.Context, workoutID uuid.UUID, sets []domain.Set) error
 	GetWorkouts(ctx context.Context, athleteID uuid.UUID, limit, offset int) ([]domain.Workout, error)
+	GetWorkoutByID(ctx context.Context, workoutID uuid.UUID) (domain.Workout, error)
 }
 
 type ExerciseWorkStorage interface {
@@ -136,4 +137,17 @@ func (s *WorkoutService) GetWorkouts(ctx context.Context, input GetWorkoutsInput
 	offset := ((input.Page - 1) * input.Limit)
 
 	return s.WorkoutStore.GetWorkouts(ctx, input.AthleteID, input.Limit, offset)
+}
+
+func (s *WorkoutService) GetWorkout(ctx context.Context, input GetWorkoutInput) (domain.Workout, error) {
+	workout, err := s.WorkoutStore.GetWorkoutByID(ctx, input.WorkoutID)
+	if err != nil {
+		return domain.Workout{}, err
+	}
+
+	if workout.AthleteID != input.AthleteID {
+		return domain.Workout{}, domain.ErrNotEnoughPermission
+	}
+
+	return workout, nil
 }

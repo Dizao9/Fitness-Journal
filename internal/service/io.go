@@ -88,3 +88,8 @@ type GetWorkoutsInput struct {
 	Limit     int
 	Page      int
 }
+
+type GetWorkoutInput struct {
+	AthleteID uuid.UUID
+	WorkoutID uuid.UUID
+}

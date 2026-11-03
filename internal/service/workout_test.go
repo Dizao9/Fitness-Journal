@@ -14,6 +14,7 @@ type mockWorkoutStorage struct {
 	insertWorkoutFunc  func(ctx context.Context, workout domain.Workout) (uuid.UUID, error)
 	insertSetsBulkFunc func(ctx context.Context, workoutID uuid.UUID, sets []domain.Set) error
 	getWorkoutsFunc    func(ctx context.Context, athleteID uuid.UUID, limit, offset int) ([]domain.Workout, error)
+	getWorkoutByIDFunc func(ctx context.Context, workoutID uuid.UUID) (domain.Workout, error)
 }
 
 type mockTxManager struct {
@@ -56,6 +57,13 @@ func (m *mockWorkoutStorage) GetWorkouts(ctx context.Context, athleteID uuid.UUI
 	}
 
 	return nil, nil
+}
+
+func (m *mockWorkoutStorage) GetWorkoutByID(ctx context.Context, workoutID uuid.UUID) (domain.Workout, error) {
+	if m.getWorkoutByIDFunc != nil {
+		return m.getWorkoutByIDFunc(ctx, workoutID)
+	}
+	return domain.Workout{}, nil
 }
 
 func TestWorkoutService_CreateWorkout_Success(t *testing.T) {
@@ -357,5 +365,27 @@ func TestWorkoutService_GetWorkouts_EdgeCases(t *testing.T) {
 			}
 		})
 
+	}
+}
+
+func TestWorkout_GetWorkoutByID_NotMyWorkout(t *testing.T) {
+	workoutID := uuid.New()
+	workStore := &mockWorkoutStorage{
+		getWorkoutByIDFunc: func(ctx context.Context, workoutID uuid.UUID) (domain.Workout, error) {
+			return domain.Workout{
+				ID:        workoutID,
+				AthleteID: uuid.New(),
+			}, nil
+		},
+	}
+
+	workoutService := NewWorkoutService(workStore, &mockExerciseWorkStorage{}, &mockTxManager{})
+
+	_, err := workoutService.GetWorkout(context.Background(), GetWorkoutInput{
+		AthleteID: uuid.New(),
+		WorkoutID: workoutID,
+	})
+	if err == nil || !errors.Is(err, domain.ErrNotEnoughPermission) {
+		t.Errorf("ожидалась ошибка: %v, получена: %v", domain.ErrNotEnoughPermission, err)
 	}
 }

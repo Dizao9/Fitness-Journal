@@ -29,3 +29,12 @@ type WorkoutSummaryResponse struct {
 	Status    string    `json:"status"`
 	TotalTime *int      `json:"total_time"`
 }
+
+type WorkoutExpandedResponse struct {
+	ID        uuid.UUID `json:"id"`
+	Date      time.Time `json:"date_of_training"`
+	Grade     *int      `json:"grade_of_training"`
+	Status    string    `json:"status"`
+	TotalTime *int      `json:"total_time"`
+	Sets      []Set     `json:"sets"`
+}

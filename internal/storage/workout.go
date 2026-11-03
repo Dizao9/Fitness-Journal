@@ -68,3 +68,81 @@ func (s *WorkoutStorage) InsertSetsBulk(ctx context.Context, workoutID uuid.UUID
 	}
 	return nil
 }
+
+func (s *WorkoutStorage) GetWorkouts(ctx context.Context, athleteID uuid.UUID, limit, offset int) ([]domain.Workout, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT id, total_time, grade_of_training, date_of_training, athlete_id, status
+	FROM workouts WHERE athlete_id = $1 ORDER BY date_of_training DESC LIMIT $2 OFFSET $3`, athleteID.String(), limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	workouts := make([]domain.Workout, 0, limit)
+	for rows.Next() {
+		workout := domain.Workout{}
+		if err := rows.Scan(&workout.ID, &workout.TotalTime, &workout.GradeOfTraining, &workout.DateOfTraining, &workout.AthleteID, &workout.Status); err != nil {
+			return nil, fmt.Errorf("invalid to scan: %w", err)
+		}
+		workouts = append(workouts, workout)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error after scan: %w", err)
+	}
+
+	return workouts, nil
+}
+
+func (s *WorkoutStorage) GetWorkoutByID(ctx context.Context, workoutID uuid.UUID) (domain.Workout, error) {
+	workout := domain.Workout{}
+	rows, err := s.DB.QueryContext(ctx, `SELECT w.id, w.total_time, w.date_of_training, w.grade_of_training, w.athlete_id,
+	 w.status, s.id, s.exercise_id, s.weight, s.set_order, s.reps, s.rpe FROM workouts w
+	 LEFT JOIN sets s ON w.id = s.workout_id
+	WHERE w.id = $1 ORDER BY s.set_order ASC`, workoutID)
+	if err != nil {
+		return domain.Workout{}, fmt.Errorf("failed to query: %w", err)
+	}
+
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	found := false
+	for rows.Next() {
+		var (
+			setID      *uuid.UUID
+			exerciseID *int
+			weight     *float32
+			setOrder   *int
+			reps       *int
+			rpe        *int
+		)
+		err := rows.Scan(&workout.ID, &workout.TotalTime, &workout.DateOfTraining, &workout.GradeOfTraining, &workout.AthleteID, &workout.Status,
+			&setID, &exerciseID, &weight, &setOrder, &reps, &rpe)
+		if err != nil {
+			return domain.Workout{}, fmt.Errorf("failed to scan: %w", err)
+		}
+		found = true
+
+		if setID != nil {
+			workout.Sets = append(workout.Sets, domain.Set{
+				ID:         *setID,
+				ExerciseID: *exerciseID,
+				Weight:     *weight,
+				SetOrder:   setOrder,
+				Reps:       *reps,
+				Rpe:        rpe,
+			})
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return domain.Workout{}, err
+	}
+
+	if !found {
+		return domain.Workout{}, domain.ErrWorkoutNotFound
+	}
+
+	return workout, nil
+}

@@ -82,3 +82,14 @@ type CreateSetInput struct {
 	Reps       int
 	Rpe        *int
 }
+
+type GetWorkoutsInput struct {
+	AthleteID uuid.UUID
+	Limit     int
+	Page      int
+}
+
+type GetWorkoutInput struct {
+	AthleteID uuid.UUID
+	WorkoutID uuid.UUID
+}

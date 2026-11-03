@@ -1,6 +1,10 @@
 package dto
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type Set struct {
 	ExerciseID int     `json:"exercise_id"`
@@ -16,4 +20,21 @@ type CreateWorkoutReq struct {
 	DateOfTraining  time.Time `json:"date_of_training"`
 	Status          string    `json:"status"`
 	Sets            []Set     `json:"sets"`
+}
+
+type WorkoutSummaryResponse struct {
+	ID        uuid.UUID `json:"id"`
+	Date      time.Time `json:"date_of_training"`
+	Grade     *int      `json:"grade_of_training"`
+	Status    string    `json:"status"`
+	TotalTime *int      `json:"total_time"`
+}
+
+type WorkoutExpandedResponse struct {
+	ID        uuid.UUID `json:"id"`
+	Date      time.Time `json:"date_of_training"`
+	Grade     *int      `json:"grade_of_training"`
+	Status    string    `json:"status"`
+	TotalTime *int      `json:"total_time"`
+	Sets      []Set     `json:"sets"`
 }

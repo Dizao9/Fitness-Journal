@@ -186,14 +186,16 @@ func (h *WorkoutHandler) GetWorkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responseSets := make([]dto.Set, len(workout.Sets))
+	responseSets := make([]dto.WorkoutSetResponse, len(workout.Sets))
 	for i, v := range workout.Sets {
-		responseSets[i] = dto.Set{
-			ExerciseID: v.ExerciseID,
-			Weight:     v.Weight,
-			SetOrder:   v.SetOrder,
-			Reps:       v.Reps,
-			Rpe:        v.Rpe,
+		responseSets[i] = dto.WorkoutSetResponse{
+			ID:           v.ID,
+			ExerciseID:   v.ExerciseID,
+			ExerciseName: v.ExerciseName,
+			Weight:       v.Weight,
+			SetOrder:     v.SetOrder,
+			Reps:         v.Reps,
+			Rpe:          v.Rpe,
 		}
 	}
 

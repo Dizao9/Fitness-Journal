@@ -389,3 +389,63 @@ func TestWorkout_GetWorkoutByID_NotMyWorkout(t *testing.T) {
 		t.Errorf("ожидалась ошибка: %v, получена: %v", domain.ErrNotEnoughPermission, err)
 	}
 }
+
+func TestWorkout_GetWorkoutByID_Success(t *testing.T) {
+	workoutID := uuid.New()
+	athleteID := uuid.New()
+	dataFromStorage := domain.Workout{
+		ID:              workoutID,
+		AthleteID:       athleteID,
+		TotalTime:       intPtr(50),
+		GradeOfTraining: intPtr(9),
+		Status:          domain.WorkoutStatusFinished,
+		Sets: []domain.Set{
+			{ID: uuid.New(),
+				ExerciseName: "bench_press",
+				ExerciseID:   1,
+				WorkoutID:    workoutID,
+				Weight:       100,
+				SetOrder:     intPtr(1),
+				Reps:         10},
+			{
+				ID:           uuid.New(),
+				ExerciseName: "bench_press",
+				ExerciseID:   1,
+				WorkoutID:    workoutID,
+				Weight:       100,
+				SetOrder:     intPtr(2),
+				Reps:         12},
+		},
+	}
+	workStore := &mockWorkoutStorage{
+		getWorkoutByIDFunc: func(ctx context.Context, workoutID uuid.UUID) (domain.Workout, error) {
+			return dataFromStorage, nil
+		},
+	}
+
+	service := NewWorkoutService(workStore, &mockExerciseWorkStorage{}, &mockTxManager{})
+	input := GetWorkoutInput{
+		AthleteID: athleteID,
+		WorkoutID: workoutID,
+	}
+	workout, err := service.GetWorkout(context.Background(), input)
+	if err != nil {
+		t.Fatalf("не ожидалось ошибка, получена: %v", err)
+	}
+
+	if workout.ID != workoutID {
+		t.Errorf("ожидался workoutID: %v, получен: %v", workoutID, workout.ID)
+	}
+
+	if len(workout.Sets) != len(dataFromStorage.Sets) {
+		t.Fatalf("ожидалось %v подходов, получено %v", len(dataFromStorage.Sets), len(workout.Sets))
+	}
+
+	for i, expectedSet := range workout.Sets {
+		actualSet := dataFromStorage.Sets[i]
+		if actualSet.ExerciseName != expectedSet.ExerciseName {
+			t.Errorf("set [%d]: ожидалось exercise_name: %v, получено: %v", i, expectedSet.ExerciseName, actualSet.ExerciseName)
+		}
+	}
+
+}

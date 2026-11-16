@@ -15,6 +15,7 @@ type mockWorkoutStorage struct {
 	insertSetsBulkFunc func(ctx context.Context, workoutID uuid.UUID, sets []domain.Set) error
 	getWorkoutsFunc    func(ctx context.Context, athleteID uuid.UUID, limit, offset int) ([]domain.Workout, error)
 	getWorkoutByIDFunc func(ctx context.Context, workoutID uuid.UUID) (domain.Workout, error)
+	createSetFunc      func(ctx context.Context, workoutID uuid.UUID, set domain.Set) (uuid.UUID, error)
 }
 
 type mockTxManager struct {
@@ -66,6 +67,13 @@ func (m *mockWorkoutStorage) GetWorkoutByID(ctx context.Context, workoutID uuid.
 	return domain.Workout{}, nil
 }
 
+func (m *mockWorkoutStorage) CreateSet(ctx context.Context, workoutID uuid.UUID, set domain.Set) (uuid.UUID, error) {
+	if m.createSetFunc != nil {
+		return m.createSetFunc(ctx, workoutID, set)
+	}
+
+	return uuid.New(), nil
+}
 func TestWorkoutService_CreateWorkout_Success(t *testing.T) {
 	expectedID := uuid.New()
 
@@ -146,7 +154,7 @@ func intPtr(v int) *int {
 func TestWorkoutService_CreateWorkout_FutureDate(t *testing.T) {
 	workServ := NewWorkoutService(&mockWorkoutStorage{}, &mockExerciseWorkStorage{}, &mockTxManager{})
 	input := CreateWorkoutInput{AthleteID: uuid.New(), TotalTime: nil, DateOfTraining: time.Now().Add(100 * time.Second), GradeOfTraining: nil, Status: domain.WorkoutStatusFinished,
-		Sets: []CreateSetInput{{
+		Sets: []CreateWorkoutSetInput{{
 			ExerciseID: 1,
 			Weight:     110.0,
 			SetOrder:   intPtr(1),
@@ -229,7 +237,7 @@ func TestWorkoutService_CreateWorkout_ExercicesAndSets(t *testing.T) {
 		AthleteID:      uuid.New(),
 		DateOfTraining: time.Now(),
 		Status:         domain.WorkoutStatusFinished,
-		Sets: []CreateSetInput{
+		Sets: []CreateWorkoutSetInput{
 			{
 				ExerciseID: 1,
 				Weight:     110,
@@ -286,7 +294,7 @@ func TestWorkoutService_CreateWorkout_SomeonesElseExercise(t *testing.T) {
 		AthleteID:      uuid.New(),
 		DateOfTraining: time.Now(),
 		Status:         domain.WorkoutStatusFinished,
-		Sets: []CreateSetInput{
+		Sets: []CreateWorkoutSetInput{
 			{
 				ExerciseID: 1,
 				Weight:     110,
@@ -448,4 +456,74 @@ func TestWorkout_GetWorkoutByID_Success(t *testing.T) {
 		}
 	}
 
+}
+
+func TestWorkoutService_CreateSet_Validation(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       CreateSetInputAtom
+		expectedErr error
+	}{
+		{
+			name: "invalid reps count",
+			input: CreateSetInputAtom{
+				AthleteID:  uuid.New(),
+				WorkoutID:  uuid.New(),
+				ExerciseID: 1,
+				Weight:     100,
+				SetOrder:   intPtr(1),
+				Reps:       -1,
+				Rpe:        intPtr(7),
+			},
+			expectedErr: domain.ErrInvalidRepsCount,
+		},
+		{
+			name: "invalid weight",
+			input: CreateSetInputAtom{
+				AthleteID:  uuid.New(),
+				WorkoutID:  uuid.New(),
+				ExerciseID: 1,
+				Weight:     -0.5,
+				SetOrder:   intPtr(2),
+				Reps:       1,
+			},
+			expectedErr: domain.ErrInvalidWeight,
+		},
+		{
+			name: "rpe out of range",
+			input: CreateSetInputAtom{
+				AthleteID:  uuid.New(),
+				WorkoutID:  uuid.New(),
+				ExerciseID: 1,
+				Weight:     1,
+				SetOrder:   intPtr(3),
+				Reps:       1,
+				Rpe:        intPtr(0),
+			},
+			expectedErr: domain.ErrInvalidRpe,
+		},
+		{
+			name: "rpe out of range",
+			input: CreateSetInputAtom{
+				AthleteID:  uuid.New(),
+				WorkoutID:  uuid.New(),
+				ExerciseID: 1,
+				Weight:     1,
+				SetOrder:   intPtr(3),
+				Reps:       1,
+				Rpe:        intPtr(11),
+			},
+			expectedErr: domain.ErrInvalidRpe,
+		},
+	}
+
+	service := NewWorkoutService(&mockWorkoutStorage{}, &mockExerciseWorkStorage{}, &mockTxManager{})
+	for _, v := range tests {
+		t.Run(v.name, func(t *testing.T) {
+			_, err := service.CreateSet(context.Background(), v.input)
+			if !errors.Is(err, v.expectedErr) {
+				t.Errorf("тест %s провалился. Ожидалась ошибка: %v, получена: %v", v.name, v.expectedErr, err)
+			}
+		})
+	}
 }

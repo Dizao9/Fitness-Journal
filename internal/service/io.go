@@ -72,10 +72,10 @@ type CreateWorkoutInput struct {
 	GradeOfTraining *int
 	DateOfTraining  time.Time
 	Status          domain.WorkoutStatus
-	Sets            []CreateSetInput
+	Sets            []CreateWorkoutSetInput
 }
 
-type CreateSetInput struct {
+type CreateWorkoutSetInput struct {
 	ExerciseID int
 	Weight     float32
 	SetOrder   *int
@@ -92,4 +92,14 @@ type GetWorkoutsInput struct {
 type GetWorkoutInput struct {
 	AthleteID uuid.UUID
 	WorkoutID uuid.UUID
+}
+
+type CreateSetInputAtom struct {
+	AthleteID  uuid.UUID
+	WorkoutID  uuid.UUID
+	ExerciseID int
+	Weight     float32
+	SetOrder   *int
+	Reps       int
+	Rpe        *int
 }

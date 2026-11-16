@@ -154,3 +154,13 @@ func (s *WorkoutStorage) GetWorkoutByID(ctx context.Context, workoutID uuid.UUID
 
 	return workout, nil
 }
+
+func (s *WorkoutStorage) CreateSet(ctx context.Context, workoutID uuid.UUID, set domain.Set) (uuid.UUID, error) {
+	var id uuid.UUID
+	if err := s.DB.QueryRowContext(ctx, `INSERT  INTO sets  (exercise_id, workout_id, weight, set_order, reps, rpe) VALUES ($1, $2, $3, $4, $5, $6)
+	RETURNING id`, set.ExerciseID, workoutID, set.Weight, set.SetOrder, set.Reps, set.Rpe).Scan(&id); err != nil {
+		return uuid.Nil, err
+	}
+
+	return id, nil
+}

@@ -13,6 +13,7 @@ type WorkoutStorage interface {
 	InsertSetsBulk(ctx context.Context, workoutID uuid.UUID, sets []domain.Set) error
 	GetWorkouts(ctx context.Context, athleteID uuid.UUID, limit, offset int) ([]domain.Workout, error)
 	GetWorkoutByID(ctx context.Context, workoutID uuid.UUID) (domain.Workout, error)
+	CreateSet(ctx context.Context, workoutID uuid.UUID, set domain.Set) (uuid.UUID, error)
 }
 
 type ExerciseWorkStorage interface {
@@ -150,4 +151,51 @@ func (s *WorkoutService) GetWorkout(ctx context.Context, input GetWorkoutInput) 
 	}
 
 	return workout, nil
+}
+
+func (s *WorkoutService) CreateSet(ctx context.Context, input CreateSetInputAtom) (uuid.UUID, error) {
+	if input.Reps < 0 {
+		return uuid.Nil, domain.ErrInvalidRepsCount
+	}
+
+	if input.Weight < 0 {
+		return uuid.Nil, domain.ErrInvalidWeight
+	}
+
+	if input.Rpe != nil && (*input.Rpe <= 0 || *input.Rpe > 10) {
+		return uuid.Nil, domain.ErrInvalidRpe
+	}
+
+	workout, err := s.WorkoutStore.GetWorkoutByID(ctx, input.WorkoutID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	if workout.AthleteID != input.AthleteID {
+		return uuid.Nil, domain.ErrNotEnoughPermission
+	}
+
+	if workout.Status != domain.WorkoutStatusInProgress {
+		return uuid.Nil, domain.ErrWorkoutAlreadyFinished
+	}
+
+	exercise, err := s.ExerciseStore.GetExerciseByIDs(ctx, input.AthleteID, []int{input.ExerciseID})
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	if len(exercise) != 1 {
+		return uuid.Nil, domain.ErrNotEnoughPermission
+	}
+
+	set := domain.Set{
+		ExerciseID: input.ExerciseID,
+		WorkoutID:  input.WorkoutID,
+		Weight:     input.Weight,
+		SetOrder:   input.SetOrder,
+		Rpe:        input.Rpe,
+		Reps:       input.Reps,
+	}
+
+	return s.WorkoutStore.CreateSet(ctx, input.WorkoutID, set)
 }

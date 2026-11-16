@@ -19,6 +19,7 @@ type WorkoutService interface {
 	CreateWorkout(ctx context.Context, input service.CreateWorkoutInput) (uuid.UUID, error)
 	GetWorkouts(ctx context.Context, input service.GetWorkoutsInput) ([]domain.Workout, error)
 	GetWorkout(ctx context.Context, input service.GetWorkoutInput) (domain.Workout, error)
+	CreateSet(ctx context.Context, input service.CreateSetInputAtom) (uuid.UUID, error)
 }
 
 type WorkoutHandler struct {
@@ -42,9 +43,9 @@ func (h *WorkoutHandler) CreateTraining(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	serviceSets := make([]service.CreateSetInput, len(workoutCreateReq.Sets))
+	serviceSets := make([]service.CreateWorkoutSetInput, len(workoutCreateReq.Sets))
 	for i, s := range workoutCreateReq.Sets {
-		serviceSets[i] = service.CreateSetInput{
+		serviceSets[i] = service.CreateWorkoutSetInput{
 			ExerciseID: s.ExerciseID,
 			Weight:     s.Weight,
 			SetOrder:   s.SetOrder,
@@ -151,6 +152,16 @@ func (h *WorkoutHandler) handleError(w http.ResponseWriter, err error) {
 		return
 	case errors.Is(err, domain.ErrWorkoutNotFound):
 		http.Error(w, "workout not found", http.StatusNotFound)
+		return
+	case errors.Is(err, domain.ErrWorkoutAlreadyFinished):
+		http.Error(w, "workout already finished", http.StatusConflict)
+		return
+	case errors.Is(err, domain.ErrInvalidRepsCount):
+		http.Error(w, "reps count cannot be negative", http.StatusBadRequest)
+	case errors.Is(err, domain.ErrInvalidRpe):
+		http.Error(w, "rpe should be between 1 to 10", http.StatusBadRequest)
+	case errors.Is(err, domain.ErrInvalidWeight):
+		http.Error(w, "weight cannot be negative", http.StatusBadRequest)
 	default:
 		http.Error(w, "invalid server error", http.StatusInternalServerError)
 		log.Printf("invalid server error: %v", err)
@@ -212,5 +223,56 @@ func (h *WorkoutHandler) GetWorkout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(workoutForResponse); err != nil {
 		log.Printf("[GET_WORKOUT] Encoder failed :%v", err)
+	}
+}
+
+func (h *WorkoutHandler) CreateSet(w http.ResponseWriter, r *http.Request) {
+	athleteID, ok := UserIDFromContext(r.Context())
+	if !ok {
+		log.Printf("[CREATE_SET] false from context")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	rawWorkoutID := r.PathValue("id")
+	workoutID, err := uuid.Parse(rawWorkoutID)
+	if err != nil {
+		http.Error(w, "invalid workout id format", http.StatusBadRequest)
+		return
+	}
+
+	set := dto.CreateSetReq{}
+
+	if err := json.NewDecoder(r.Body).Decode(&set); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	setServiceInput := service.CreateSetInputAtom{
+		AthleteID:  athleteID,
+		WorkoutID:  workoutID,
+		ExerciseID: set.ExerciseID,
+		Weight:     set.Weight,
+		SetOrder:   set.SetOrder,
+		Reps:       set.Reps,
+		Rpe:        set.Rpe,
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	id, err := h.Service.CreateSet(ctx, setServiceInput)
+
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+
+	if err := json.NewEncoder(w).Encode(dto.CreateSetResponse{
+		SetID: id,
+	}); err != nil {
+		log.Printf("[CREATE_SET] Encoder failed :%v", err)
 	}
 }

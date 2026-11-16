@@ -47,3 +47,7 @@ type WorkoutExpandedResponse struct {
 	TotalTime *int                 `json:"total_time"`
 	Sets      []WorkoutSetResponse `json:"sets"`
 }
+
+type CreateSetResponse struct {
+	SetID uuid.UUID `json:"set_id"`
+}

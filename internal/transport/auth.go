@@ -38,12 +38,14 @@ type AuthService interface {
 }
 
 type AuthHandler struct {
-	AuthSvc AuthService
+	AuthSvc      AuthService
+	CookieSecure bool
 }
 
-func NewAuthHandler(ASvc AuthService) *AuthHandler {
+func NewAuthHandler(ASvc AuthService, cookieSecure bool) *AuthHandler {
 	return &AuthHandler{
-		AuthSvc: ASvc,
+		AuthSvc:      ASvc,
+		CookieSecure: cookieSecure,
 	}
 }
 
@@ -123,7 +125,7 @@ func (h *AuthHandler) SetTokenCookie(w http.ResponseWriter, tokenPair service.To
 		Value:    tokenPair.AccessToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false, //on prodaction = true
+		Secure:   h.CookieSecure,
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   30 * 60,
 	})
@@ -133,7 +135,7 @@ func (h *AuthHandler) SetTokenCookie(w http.ResponseWriter, tokenPair service.To
 		Value:    tokenPair.RefreshToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false, //on prodaction = true
+		Secure:   h.CookieSecure,
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   30 * 24 * 60 * 60,
 	})
@@ -229,7 +231,7 @@ func (h *AuthHandler) clearAuthCookies(w http.ResponseWriter) {
 			Path:     "/",
 			MaxAge:   -1,
 			HttpOnly: true,
-			Secure:   false,
+			Secure:   h.CookieSecure,
 			SameSite: http.SameSiteStrictMode,
 		})
 	}

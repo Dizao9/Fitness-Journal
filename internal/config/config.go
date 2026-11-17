@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -14,6 +15,7 @@ type Config struct {
 	DSN              string
 	AccessJWTSecret  string
 	RefreshJWTSecret string
+	CookieSecure     bool
 }
 
 func LoadConfig() (*Config, error) {
@@ -25,6 +27,13 @@ func LoadConfig() (*Config, error) {
 	dsn := os.Getenv("DSN")
 	jwtSecret := os.Getenv("JWT_SECRET")
 	refreshJWTSecret := os.Getenv("REFRESH_JWT_SECRET")
+	cookieSecureRaw := os.Getenv("COOKIE_SECURE")
+
+	cookieSecure, err := strconv.ParseBool(cookieSecureRaw)
+	if err != nil {
+		cookieSecure = true
+		log.Printf("COOKIE_SECURE is failed. set default value = TRUE")
+	}
 
 	var missing []string
 
@@ -53,5 +62,6 @@ func LoadConfig() (*Config, error) {
 		DSN:              dsn,
 		AccessJWTSecret:  jwtSecret,
 		RefreshJWTSecret: refreshJWTSecret,
+		CookieSecure:     cookieSecure,
 	}, nil
 }

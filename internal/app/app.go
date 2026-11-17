@@ -14,7 +14,7 @@ import (
 	"github.com/Dizao9/Fitness-Journal/internal/transport"
 )
 
-const cost = 12 //следует вынести в .env
+const cost = 12
 
 func Run(ctx context.Context) error {
 	cfg, err := config.LoadConfig()
@@ -45,7 +45,7 @@ func Run(ctx context.Context) error {
 	exercService := service.NewExerciseService(exercStorage)
 	workoutService := service.NewWorkoutService(workoutStorage, exercStorage, txManager)
 
-	router := transport.NewRouter(transport.NewAuthHandler(authService), transport.NewAthleteHandler(athlService), transport.NewExerciseHandler(exercService), transport.NewWorkoutHandler(workoutService))
+	router := transport.NewRouter(transport.NewAuthHandler(authService, cfg.CookieSecure), transport.NewAthleteHandler(athlService), transport.NewExerciseHandler(exercService), transport.NewWorkoutHandler(workoutService))
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

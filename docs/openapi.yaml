@@ -1,0 +1,804 @@
+openapi: 3.0.3
+info:
+  title: Fitness-Journal API
+  version: 1.0.0
+  description: |
+    REST API for Fitness-Journal — workout tracker with JWT HttpOnly cookie authentication,
+    system and custom exercise catalog, live workout sessions, and history pagination.
+
+    ### Authentication
+    Protected endpoints require the `access_token` HttpOnly cookie set by `POST /auth/login`
+    or refreshed via `POST /auth/refresh`.
+    When proxied behind Nginx on the same domain, all routes are mounted under `/api`
+    (e.g. `POST /api/auth/login` -> `POST /auth/login`).
+
+servers:
+  - url: http://localhost:8081
+    description: Local Go backend directly
+  - url: /api
+    description: Production / Dev via reverse proxy (Nginx or Vite)
+
+tags:
+  - name: Auth
+    description: Registration, login, token refresh, and logout (HttpOnly cookies)
+  - name: Athlete
+    description: Authenticated athlete profile management
+  - name: Exercises
+    description: System and custom exercises CRUD
+  - name: Workouts
+    description: Workout history, details, live-session sets, finish, and deletion
+
+components:
+  securitySchemes:
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+    RefreshCookieAuth:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 20
+          example: iron_mike
+        email:
+          type: string
+          format: email
+          example: mike@example.com
+        password:
+          type: string
+          minLength: 8
+          example: supersecret123
+        name:
+          type: string
+          example: Mike
+        age:
+          type: integer
+          example: 26
+
+    RegisterValidationError:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        errors:
+          type: array
+          items:
+            type: string
+          example:
+            - "username: слишком короткий (мин. 3)"
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: mike@example.com
+        password:
+          type: string
+          example: supersecret123
+
+    IDResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+
+    StringIDResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Numeric exercise ID encoded as a JSON string
+          example: "42"
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: ok
+
+    UserProfileResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        age:
+          type: integer
+        username:
+          type: string
+        current_cycle:
+          type: string
+          nullable: true
+        gender:
+          type: string
+        email:
+          type: string
+          format: email
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        age:
+          type: integer
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        current_cycle:
+          type: string
+          nullable: true
+
+    CreateExerciseRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: Incline Dumbbell Press
+        muscle_group:
+          type: string
+          example: Chest
+        description:
+          type: string
+          nullable: true
+          example: 30-degree incline bench
+
+    UpdateExerciseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        muscle_group:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+
+    ExerciseListItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        muscle_group:
+          type: string
+        is_owner:
+          type: boolean
+        is_system:
+          type: boolean
+
+    ExerciseDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        muscle_group:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_owner:
+          type: boolean
+
+    WorkoutStatus:
+      type: string
+      enum: [in_progress, finished]
+
+    CreateSetRequest:
+      type: object
+      required: [exercise_id, weight, reps]
+      properties:
+        exercise_id:
+          type: integer
+          example: 1
+        weight:
+          type: number
+          format: float
+          minimum: 0
+          example: 80.5
+        set_order:
+          type: integer
+          nullable: true
+          example: 1
+        reps:
+          type: integer
+          minimum: 0
+          description: "0 is allowed to log a failed attempt"
+          example: 8
+        rpe:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 10
+          example: 8
+
+    CreateSetResponse:
+      type: object
+      properties:
+        set_id:
+          type: string
+          format: uuid
+
+    CreateWorkoutRequest:
+      type: object
+      required: [date_of_training, status]
+      properties:
+        total_time:
+          type: integer
+          nullable: true
+          description: Duration in minutes
+          example: 60
+        grade_of_training:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 10
+          example: 9
+        date_of_training:
+          type: string
+          format: date-time
+          description: RFC3339 timestamp; must not be in the future
+          example: "2026-11-17T18:00:00Z"
+        status:
+          $ref: "#/components/schemas/WorkoutStatus"
+        sets:
+          type: array
+          description: Required to be non-empty when status is "finished"; may be empty for "in_progress"
+          items:
+            $ref: "#/components/schemas/CreateSetRequest"
+
+    WorkoutSummaryResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        date_of_training:
+          type: string
+          format: date-time
+        grade_of_training:
+          type: integer
+          nullable: true
+        status:
+          $ref: "#/components/schemas/WorkoutStatus"
+        total_time:
+          type: integer
+          nullable: true
+
+    WorkoutSetResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        exercise_id:
+          type: integer
+        exercise_name:
+          type: string
+        weight:
+          type: number
+          format: float
+        set_order:
+          type: integer
+          nullable: true
+        reps:
+          type: integer
+        rpe:
+          type: integer
+          nullable: true
+
+    WorkoutExpandedResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        date_of_training:
+          type: string
+          format: date-time
+        grade_of_training:
+          type: integer
+          nullable: true
+        status:
+          $ref: "#/components/schemas/WorkoutStatus"
+        total_time:
+          type: integer
+          nullable: true
+        sets:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkoutSetResponse"
+
+    FinishWorkoutRequest:
+      type: object
+      description: Send at least `{}` even if both fields are omitted
+      properties:
+        total_time:
+          type: integer
+          nullable: true
+          minimum: 0
+          example: 65
+        grade_of_training:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 10
+          example: 9
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new athlete
+      description: Creates a new user account. Does not set auth cookies; call `POST /auth/login` afterwards.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IDResponse"
+        "400":
+          description: Validation error (JSON) or user already exists (plain text)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterValidationError"
+            text/plain:
+              schema:
+                type: string
+        "500":
+          description: Internal server error
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate athlete and set HttpOnly cookies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful; sets `access_token` (30m) and `refresh_token` (30d) HttpOnly cookies
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Invalid request body or missing email/password
+        "401":
+          description: Invalid credentials
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate access and refresh tokens using refresh_token cookie
+      security:
+        - RefreshCookieAuth: []
+      responses:
+        "200":
+          description: New token pair set in cookies
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          description: Missing or invalid refresh token
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke refresh token and clear auth cookies
+      responses:
+        "204":
+          description: Logged out
+
+  /athlete/profile:
+    get:
+      tags: [Athlete]
+      summary: Get current athlete profile
+      security:
+        - CookieAuth: []
+      responses:
+        "200":
+          description: Athlete profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileResponse"
+        "401":
+          description: Unauthorized
+        "404":
+          description: User not found
+    put:
+      tags: [Athlete]
+      summary: Update current athlete profile
+      security:
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Invalid request body
+        "401":
+          description: Unauthorized
+        "404":
+          description: User not found
+    delete:
+      tags: [Athlete]
+      summary: Delete current athlete account
+      security:
+        - CookieAuth: []
+      responses:
+        "204":
+          description: Account deleted
+        "401":
+          description: Unauthorized
+        "404":
+          description: User not found
+
+  /exercise:
+    post:
+      tags: [Exercises]
+      summary: Create a custom exercise
+      security:
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExerciseRequest"
+      responses:
+        "201":
+          description: Exercise created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StringIDResponse"
+        "400":
+          description: Invalid body or missing name
+        "401":
+          description: Unauthorized
+
+  /exercises:
+    get:
+      tags: [Exercises]
+      summary: List exercises with pagination and ownership filter
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 300
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: filter
+          in: query
+          description: "`my` (only user's custom), `system` (only built-in), or omit for both"
+          schema:
+            type: string
+            enum: [my, system]
+      responses:
+        "200":
+          description: List of exercises
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExerciseListItem"
+        "401":
+          description: Unauthorized
+
+  /exercise/{id}:
+    get:
+      tags: [Exercises]
+      summary: Get exercise details by ID
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Exercise details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExerciseDetail"
+        "400":
+          description: Invalid integer ID
+        "401":
+          description: Unauthorized
+        "404":
+          description: Exercise not found
+    put:
+      tags: [Exercises]
+      summary: Update a custom exercise owned by the current athlete
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateExerciseRequest"
+      responses:
+        "200":
+          description: Exercise updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Invalid request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Not enough permission (system or another user's exercise)
+        "404":
+          description: Exercise not found
+    delete:
+      tags: [Exercises]
+      summary: Delete a custom exercise owned by the current athlete
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Exercise deleted
+        "400":
+          description: Invalid integer ID
+        "401":
+          description: Unauthorized
+        "403":
+          description: Not enough permission
+        "404":
+          description: Exercise not found
+
+  /workout:
+    post:
+      tags: [Workouts]
+      summary: Create a workout (either start an in_progress live session or log a finished workout)
+      security:
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkoutRequest"
+      responses:
+        "201":
+          description: Workout created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IDResponse"
+        "400":
+          description: Invalid status, future date, invalid grade, or finished workout without sets
+        "401":
+          description: Unauthorized
+        "403":
+          description: One or more referenced exercises are inaccessible
+
+  /workouts:
+    get:
+      tags: [Workouts]
+      summary: List athlete's workouts with pagination
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+      responses:
+        "200":
+          description: Paginated workout summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkoutSummaryResponse"
+        "401":
+          description: Unauthorized
+
+  /workout/{id}:
+    get:
+      tags: [Workouts]
+      summary: Get workout details with sets and exercise names
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Workout details with sets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutExpandedResponse"
+        "400":
+          description: Invalid UUID
+        "401":
+          description: Unauthorized
+        "403":
+          description: Workout belongs to another athlete
+        "404":
+          description: Workout not found
+    delete:
+      tags: [Workouts]
+      summary: Delete a workout (cascades to its sets)
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Workout deleted
+        "400":
+          description: Invalid UUID
+        "401":
+          description: Unauthorized
+        "403":
+          description: Workout belongs to another athlete
+        "404":
+          description: Workout not found
+
+  /workout/{id}/set:
+    post:
+      tags: [Workouts]
+      summary: Add a single set to an in-progress workout
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSetRequest"
+      responses:
+        "201":
+          description: Set created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateSetResponse"
+        "400":
+          description: Invalid UUID, negative reps/weight, or RPE outside 1..10
+        "401":
+          description: Unauthorized
+        "403":
+          description: Workout or exercise belongs to another athlete
+        "404":
+          description: Workout not found
+        "409":
+          description: Workout is already finished
+
+  /workout/{id}/finish:
+    patch:
+      tags: [Workouts]
+      summary: Finish an in-progress workout with optional duration and rating
+      security:
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinishWorkoutRequest"
+      responses:
+        "204":
+          description: Workout marked as finished
+        "400":
+          description: Invalid UUID, empty/invalid body, negative total_time, invalid grade, or workout has no sets
+        "401":
+          description: Unauthorized
+        "403":
+          description: Workout belongs to another athlete
+        "404":
+          description: Workout not found
+        "409":
+          description: Workout is already finished

@@ -164,3 +164,38 @@ func (s *WorkoutStorage) CreateSet(ctx context.Context, workoutID uuid.UUID, set
 
 	return id, nil
 }
+
+func (s *WorkoutStorage) DeleteWorkout(ctx context.Context, workoutID uuid.UUID) error {
+	res, err := s.DB.ExecContext(ctx, `DELETE FROM workouts WHERE id = $1`, workoutID)
+	if err != nil {
+		return err
+	}
+	rowsAff, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAff == 0 {
+		return domain.ErrWorkoutNotFound
+	}
+
+	return nil
+}
+
+func (s *WorkoutStorage) UpdateWorkout(ctx context.Context, workout domain.Workout) error {
+	engine := getQueryEngine(ctx, s.DB)
+
+	res, err := engine.ExecContext(ctx, `UPDATE workouts SET status = $1, total_time = $2, grade_of_training = $3 WHERE id = $4`,
+		workout.Status, workout.TotalTime, workout.GradeOfTraining, workout.ID)
+	if err != nil {
+		return err
+	}
+
+	rowsAff, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAff == 0 {
+		return domain.ErrWorkoutNotFound
+	}
+	return nil
+}

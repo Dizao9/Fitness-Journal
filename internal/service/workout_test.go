@@ -16,6 +16,8 @@ type mockWorkoutStorage struct {
 	getWorkoutsFunc    func(ctx context.Context, athleteID uuid.UUID, limit, offset int) ([]domain.Workout, error)
 	getWorkoutByIDFunc func(ctx context.Context, workoutID uuid.UUID) (domain.Workout, error)
 	createSetFunc      func(ctx context.Context, workoutID uuid.UUID, set domain.Set) (uuid.UUID, error)
+	updateWorkoutFunc  func(ctx context.Context, workout domain.Workout) error
+	deleteWorkoutFunc  func(ctx context.Context, workoutID uuid.UUID) error
 }
 
 type mockTxManager struct {
@@ -73,6 +75,22 @@ func (m *mockWorkoutStorage) CreateSet(ctx context.Context, workoutID uuid.UUID,
 	}
 
 	return uuid.New(), nil
+}
+
+func (m *mockWorkoutStorage) DeleteWorkout(ctx context.Context, workoutID uuid.UUID) error {
+	if m.deleteWorkoutFunc != nil {
+		return m.deleteWorkoutFunc(ctx, workoutID)
+	}
+
+	return nil
+}
+
+func (m *mockWorkoutStorage) UpdateWorkout(ctx context.Context, workout domain.Workout) error {
+	if m.updateWorkoutFunc != nil {
+		return m.updateWorkoutFunc(ctx, workout)
+	}
+
+	return nil
 }
 func TestWorkoutService_CreateWorkout_Success(t *testing.T) {
 	expectedID := uuid.New()
@@ -523,6 +541,188 @@ func TestWorkoutService_CreateSet_Validation(t *testing.T) {
 			_, err := service.CreateSet(context.Background(), v.input)
 			if !errors.Is(err, v.expectedErr) {
 				t.Errorf("тест %s провалился. Ожидалась ошибка: %v, получена: %v", v.name, v.expectedErr, err)
+			}
+		})
+	}
+}
+
+func TestWorkoutService_FinishWorkout(t *testing.T) {
+	athleteID := uuid.New()
+	workoutID := uuid.New()
+	validSets := []domain.Set{
+		{
+			ID:         uuid.New(),
+			ExerciseID: 1,
+			WorkoutID:  workoutID,
+			Weight:     100,
+			Reps:       10,
+		},
+	}
+
+	tests := []struct {
+		name               string
+		input              FinishWorkoutInput
+		storedWorkout      domain.Workout
+		expectedErr        error
+		expectUpdateCalled bool
+	}{
+		{
+			name: "success",
+			input: FinishWorkoutInput{
+				AthleteID:       athleteID,
+				WorkoutID:       workoutID,
+				TotalTime:       intPtr(65),
+				GradeOfTraining: intPtr(9),
+			},
+			storedWorkout: domain.Workout{
+				ID:        workoutID,
+				AthleteID: athleteID,
+				Status:    domain.WorkoutStatusInProgress,
+				Sets:      validSets,
+			},
+			expectedErr:        nil,
+			expectUpdateCalled: true,
+		},
+		{
+			name: "success with nil",
+			input: FinishWorkoutInput{
+				AthleteID:       athleteID,
+				WorkoutID:       workoutID,
+				TotalTime:       nil,
+				GradeOfTraining: nil,
+			},
+			storedWorkout: domain.Workout{
+				ID:        workoutID,
+				AthleteID: athleteID,
+				Status:    domain.WorkoutStatusInProgress,
+				Sets:      validSets,
+			},
+			expectedErr:        nil,
+			expectUpdateCalled: true,
+		},
+		{
+			name: "empty sets",
+			input: FinishWorkoutInput{
+				AthleteID:       athleteID,
+				WorkoutID:       workoutID,
+				TotalTime:       intPtr(45),
+				GradeOfTraining: intPtr(8),
+			},
+			storedWorkout: domain.Workout{
+				ID:        workoutID,
+				AthleteID: athleteID,
+				Status:    domain.WorkoutStatusInProgress,
+				Sets:      nil,
+			},
+			expectedErr:        domain.ErrNoSetsInFinishedWorkout,
+			expectUpdateCalled: false,
+		},
+		{
+			name: "already finished workout",
+			input: FinishWorkoutInput{
+				AthleteID:       athleteID,
+				WorkoutID:       workoutID,
+				TotalTime:       intPtr(45),
+				GradeOfTraining: intPtr(8),
+			},
+			storedWorkout: domain.Workout{
+				ID:        workoutID,
+				AthleteID: athleteID,
+				Status:    domain.WorkoutStatusFinished,
+				Sets:      validSets,
+			},
+			expectedErr:        domain.ErrWorkoutAlreadyFinished,
+			expectUpdateCalled: false,
+		},
+		{
+			name: "strangers workout",
+			input: FinishWorkoutInput{
+				AthleteID:       athleteID,
+				WorkoutID:       workoutID,
+				TotalTime:       intPtr(45),
+				GradeOfTraining: intPtr(8),
+			},
+			storedWorkout: domain.Workout{
+				ID:        workoutID,
+				AthleteID: uuid.New(),
+				Status:    domain.WorkoutStatusInProgress,
+				Sets:      validSets,
+			},
+			expectedErr:        domain.ErrNotEnoughPermission,
+			expectUpdateCalled: false,
+		},
+		{
+			name: "invalid data (grade)",
+			input: FinishWorkoutInput{
+				AthleteID:       athleteID,
+				WorkoutID:       workoutID,
+				TotalTime:       intPtr(45),
+				GradeOfTraining: intPtr(11),
+			},
+			storedWorkout: domain.Workout{
+				ID:        workoutID,
+				AthleteID: athleteID,
+				Status:    domain.WorkoutStatusInProgress,
+				Sets:      validSets,
+			},
+			expectedErr:        domain.ErrInvalidGradeOfTraining,
+			expectUpdateCalled: false,
+		},
+		{
+			name: "invalid data (time)",
+			input: FinishWorkoutInput{
+				AthleteID:       athleteID,
+				WorkoutID:       workoutID,
+				TotalTime:       intPtr(-5),
+				GradeOfTraining: intPtr(8),
+			},
+			storedWorkout: domain.Workout{
+				ID:        workoutID,
+				AthleteID: athleteID,
+				Status:    domain.WorkoutStatusInProgress,
+				Sets:      validSets,
+			},
+			expectedErr:        domain.ErrInvalidTotalTime,
+			expectUpdateCalled: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			havingCallUpdate := false
+			var capturedWorkout domain.Workout
+
+			workoutStorage := &mockWorkoutStorage{
+				getWorkoutByIDFunc: func(ctx context.Context, id uuid.UUID) (domain.Workout, error) {
+					return tc.storedWorkout, nil
+				},
+				updateWorkoutFunc: func(ctx context.Context, workout domain.Workout) error {
+					havingCallUpdate = true
+					capturedWorkout = workout
+					return nil
+				},
+			}
+
+			service := NewWorkoutService(workoutStorage, &mockExerciseWorkStorage{}, &mockTxManager{})
+
+			err := service.FinishWorkout(context.Background(), tc.input)
+			if !errors.Is(err, tc.expectedErr) {
+				t.Errorf("ожидалась ошибка: %v, получена: %v", tc.expectedErr, err)
+			}
+			if havingCallUpdate != tc.expectUpdateCalled {
+				t.Errorf("ожидалось havingCallUpdate=%v, получено %v", tc.expectUpdateCalled, havingCallUpdate)
+			}
+
+			if tc.expectUpdateCalled {
+				if capturedWorkout.Status != domain.WorkoutStatusFinished {
+					t.Errorf("ожидался статус %q, получен %q", domain.WorkoutStatusFinished, capturedWorkout.Status)
+				}
+				if tc.input.TotalTime != nil && (capturedWorkout.TotalTime == nil || *capturedWorkout.TotalTime != *tc.input.TotalTime) {
+					t.Errorf("ожидалось TotalTime=%d, получено %v", *tc.input.TotalTime, capturedWorkout.TotalTime)
+				}
+				if tc.input.GradeOfTraining != nil && (capturedWorkout.GradeOfTraining == nil || *capturedWorkout.GradeOfTraining != *tc.input.GradeOfTraining) {
+					t.Errorf("ожидалось GradeOfTraining=%d, получено %v", *tc.input.GradeOfTraining, capturedWorkout.GradeOfTraining)
+				}
 			}
 		})
 	}

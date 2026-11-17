@@ -20,6 +20,8 @@ type WorkoutService interface {
 	GetWorkouts(ctx context.Context, input service.GetWorkoutsInput) ([]domain.Workout, error)
 	GetWorkout(ctx context.Context, input service.GetWorkoutInput) (domain.Workout, error)
 	CreateSet(ctx context.Context, input service.CreateSetInputAtom) (uuid.UUID, error)
+	DeleteWorkout(ctx context.Context, input service.DeleteWorkoutInput) error
+	FinishWorkout(ctx context.Context, input service.FinishWorkoutInput) error
 }
 
 type WorkoutHandler struct {
@@ -162,6 +164,8 @@ func (h *WorkoutHandler) handleError(w http.ResponseWriter, err error) {
 		http.Error(w, "rpe should be between 1 to 10", http.StatusBadRequest)
 	case errors.Is(err, domain.ErrInvalidWeight):
 		http.Error(w, "weight cannot be negative", http.StatusBadRequest)
+	case errors.Is(err, domain.ErrInvalidTotalTime):
+		http.Error(w, "total_time cannot be negative", http.StatusBadRequest)
 	default:
 		http.Error(w, "invalid server error", http.StatusInternalServerError)
 		log.Printf("invalid server error: %v", err)
@@ -275,4 +279,68 @@ func (h *WorkoutHandler) CreateSet(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		log.Printf("[CREATE_SET] Encoder failed :%v", err)
 	}
+}
+
+func (h *WorkoutHandler) FinishWorkout(w http.ResponseWriter, r *http.Request) {
+	athleteID, ok := UserIDFromContext(r.Context())
+	if !ok {
+		log.Printf("[FINISH_WORKOUT] false from context")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	workoutIDRaw := r.PathValue("id")
+	workoutID, err := uuid.Parse(workoutIDRaw)
+	if err != nil {
+		http.Error(w, "invalid format workout_id in url path, should be uuid", http.StatusBadRequest)
+		return
+	}
+
+	req := dto.FinishWorkoutReq{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+
+	err = h.Service.FinishWorkout(ctx, service.FinishWorkoutInput{
+		AthleteID:       athleteID,
+		WorkoutID:       workoutID,
+		TotalTime:       req.TotalTime,
+		GradeOfTraining: req.GradeOfTraining,
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *WorkoutHandler) DeleteWorkout(w http.ResponseWriter, r *http.Request) {
+	athleteID, ok := UserIDFromContext(r.Context())
+	if !ok {
+		log.Printf("[DELETE_WORKOUT] false from context")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	workoutIDRaw := r.PathValue("id")
+	workoutID, err := uuid.Parse(workoutIDRaw)
+	if err != nil {
+		http.Error(w, "invalid format workout_id in url path, should be uuid", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+
+	err = h.Service.DeleteWorkout(ctx, service.DeleteWorkoutInput{AthleteID: athleteID, WorkoutID: workoutID})
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

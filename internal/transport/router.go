@@ -25,5 +25,7 @@ func NewRouter(auth *AuthHandler, athlete *AthleteHandler, exercise *ExerciseHan
 	mux.Handle("GET /workouts", protected(http.HandlerFunc(workout.GetWorkouts)))
 	mux.Handle("GET /workout/{id}", protected(http.HandlerFunc(workout.GetWorkout)))
 	mux.Handle("POST /workout/{id}/set", protected(http.HandlerFunc(workout.CreateSet)))
+	mux.Handle("PATCH /workout/{id}/finish", protected(http.HandlerFunc(workout.FinishWorkout)))
+	mux.Handle("DELETE /workout/{id}", protected(http.HandlerFunc(workout.DeleteWorkout)))
 	return mux
 }

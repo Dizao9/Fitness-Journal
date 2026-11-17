@@ -14,6 +14,8 @@ type WorkoutStorage interface {
 	GetWorkouts(ctx context.Context, athleteID uuid.UUID, limit, offset int) ([]domain.Workout, error)
 	GetWorkoutByID(ctx context.Context, workoutID uuid.UUID) (domain.Workout, error)
 	CreateSet(ctx context.Context, workoutID uuid.UUID, set domain.Set) (uuid.UUID, error)
+	DeleteWorkout(ctx context.Context, workoutID uuid.UUID) error
+	UpdateWorkout(ctx context.Context, workout domain.Workout) error
 }
 
 type ExerciseWorkStorage interface {
@@ -198,4 +200,58 @@ func (s *WorkoutService) CreateSet(ctx context.Context, input CreateSetInputAtom
 	}
 
 	return s.WorkoutStore.CreateSet(ctx, input.WorkoutID, set)
+}
+
+func (s *WorkoutService) DeleteWorkout(ctx context.Context, input DeleteWorkoutInput) error {
+	workout, err := s.WorkoutStore.GetWorkoutByID(ctx, input.WorkoutID)
+	if err != nil {
+		return err
+	}
+
+	if workout.AthleteID != input.AthleteID {
+		return domain.ErrNotEnoughPermission
+	}
+
+	err = s.WorkoutStore.DeleteWorkout(ctx, input.WorkoutID)
+	return err
+}
+
+func (s *WorkoutService) FinishWorkout(ctx context.Context, input FinishWorkoutInput) error {
+	if input.TotalTime != nil && *input.TotalTime < 0 {
+		return domain.ErrInvalidTotalTime
+	}
+
+	if input.GradeOfTraining != nil && (*input.GradeOfTraining < 0 || *input.GradeOfTraining > 10) {
+		return domain.ErrInvalidGradeOfTraining
+	}
+
+	workout, err := s.WorkoutStore.GetWorkoutByID(ctx, input.WorkoutID)
+	if err != nil {
+		return err
+	}
+
+	if workout.AthleteID != input.AthleteID {
+		return domain.ErrNotEnoughPermission
+	}
+
+	if workout.Status == domain.WorkoutStatusFinished {
+		return domain.ErrWorkoutAlreadyFinished
+	}
+
+	if len(workout.Sets) == 0 {
+		return domain.ErrNoSetsInFinishedWorkout
+	}
+
+	if input.GradeOfTraining != nil {
+		workout.GradeOfTraining = input.GradeOfTraining
+	}
+
+	if input.TotalTime != nil {
+		workout.TotalTime = input.TotalTime
+	}
+
+	workout.Status = domain.WorkoutStatusFinished
+
+	err = s.WorkoutStore.UpdateWorkout(ctx, workout)
+	return err
 }

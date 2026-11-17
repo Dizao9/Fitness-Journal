@@ -103,3 +103,15 @@ type CreateSetInputAtom struct {
 	Reps       int
 	Rpe        *int
 }
+
+type DeleteWorkoutInput struct {
+	AthleteID uuid.UUID
+	WorkoutID uuid.UUID
+}
+
+type FinishWorkoutInput struct {
+	AthleteID       uuid.UUID
+	WorkoutID       uuid.UUID
+	TotalTime       *int
+	GradeOfTraining *int
+}
